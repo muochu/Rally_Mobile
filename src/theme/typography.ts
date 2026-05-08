@@ -1,0 +1,76 @@
+export const typography = {
+  displayLarge: {
+    fontFamily: 'SF Pro Display',
+    fontSize: 44,
+    fontWeight: '700',
+    letterSpacing: -1.0,
+    lineHeight: 48,
+  },
+  displayMedium: {
+    fontFamily: 'SF Pro Display',
+    fontSize: 32,
+    fontWeight: '600',
+    letterSpacing: -0.6,
+    lineHeight: 36,
+  },
+  headline: {
+    fontFamily: 'SF Pro Display',
+    fontSize: 24,
+    fontWeight: '600',
+    letterSpacing: -0.4,
+    lineHeight: 28,
+  },
+  title: {
+    fontFamily: 'SF Pro Display',
+    fontSize: 20,
+    fontWeight: '600',
+    letterSpacing: -0.2,
+    lineHeight: 24,
+  },
+  bodyLarge: {
+    fontFamily: 'SF Pro Text',
+    fontSize: 17,
+    fontWeight: '400',
+    lineHeight: 24,
+  },
+  bodyMedium: {
+    fontFamily: 'SF Pro Text',
+    fontSize: 15,
+    fontWeight: '400',
+    lineHeight: 22,
+  },
+  bodySmall: {
+    fontFamily: 'SF Pro Text',
+    fontSize: 13,
+    fontWeight: '400',
+    lineHeight: 18,
+  },
+  labelLarge: {
+    fontFamily: 'SF Pro Text',
+    fontSize: 15,
+    fontWeight: '600',
+    letterSpacing: -0.1,
+  },
+  labelMedium: {
+    fontFamily: 'SF Pro Text',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  labelSmall: {
+    fontFamily: 'SF Pro Text',
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  caption: {
+    fontFamily: 'SF Pro Text',
+    fontSize: 12,
+    fontWeight: '400',
+    color: 'tertiary',
+  },
+  numeric: {
+    fontFamily: 'SF Pro Display',
+    fontVariant: ['tabular-nums'],
+  },
+} as const;

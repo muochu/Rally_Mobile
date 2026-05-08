@@ -1,0 +1,133 @@
+insert into public.courts (
+  name,
+  address,
+  latitude,
+  longitude,
+  city,
+  hours,
+  court_count,
+  fee_per_hour_cents,
+  surface,
+  indoor
+)
+values
+  (
+    'Stanley Park Tennis Courts',
+    '610 Pipeline Rd, Vancouver, BC',
+    49.3043,
+    -123.1443,
+    'Vancouver',
+    '{"mon_fri":"07:00-22:00","sat_sun":"07:00-22:00"}',
+    17,
+    0,
+    'hard',
+    false
+  ),
+  (
+    'Kitsilano Beach Tennis Courts',
+    '1499 Arbutus St, Vancouver, BC',
+    49.2733,
+    -123.1549,
+    'Vancouver',
+    '{"mon_fri":"07:00-22:00","sat_sun":"07:00-22:00"}',
+    8,
+    0,
+    'hard',
+    false
+  ),
+  (
+    'Queen Elizabeth Park Tennis Courts',
+    '4600 Cambie St, Vancouver, BC',
+    49.2413,
+    -123.1126,
+    'Vancouver',
+    '{"mon_fri":"07:00-21:00","sat_sun":"07:00-21:00"}',
+    6,
+    0,
+    'hard',
+    false
+  ),
+  (
+    'Jericho Beach Tennis Courts',
+    '3941 Point Grey Rd, Vancouver, BC',
+    49.2741,
+    -123.2037,
+    'Vancouver',
+    '{"mon_fri":"07:00-22:00","sat_sun":"07:00-22:00"}',
+    8,
+    0,
+    'hard',
+    false
+  ),
+  (
+    'Trout Lake Tennis Courts',
+    '3360 Victoria Dr, Vancouver, BC',
+    49.2543,
+    -123.0672,
+    'Vancouver',
+    '{"mon_fri":"07:00-22:00","sat_sun":"07:00-22:00"}',
+    6,
+    0,
+    'hard',
+    false
+  ),
+  (
+    'Memorial South Park Tennis Courts',
+    '5955 Ross St, Vancouver, BC',
+    49.2304,
+    -123.0838,
+    'Vancouver',
+    '{"mon_fri":"07:00-21:00","sat_sun":"07:00-21:00"}',
+    4,
+    0,
+    'hard',
+    false
+  ),
+  (
+    'Hillcrest Centre Courts',
+    '4575 Clancy Loranger Way, Vancouver, BC',
+    49.2436,
+    -123.1075,
+    'Vancouver',
+    '{"mon_fri":"06:00-23:00","sat_sun":"06:00-23:00"}',
+    4,
+    1800,
+    'hard',
+    true
+  ),
+  (
+    'David Lam Park Tennis Courts',
+    '1300 Pacific Blvd, Vancouver, BC',
+    49.2731,
+    -123.1266,
+    'Vancouver',
+    '{"mon_fri":"07:00-22:00","sat_sun":"07:00-22:00"}',
+    2,
+    0,
+    'hard',
+    false
+  ),
+  (
+    'Champlain Heights Community Courts',
+    '3350 Maquinna Dr, Vancouver, BC',
+    49.2129,
+    -123.0307,
+    'Vancouver',
+    '{"mon_fri":"08:00-21:00","sat_sun":"08:00-21:00"}',
+    3,
+    0,
+    'hard',
+    false
+  ),
+  (
+    'UBC Tennis Centre',
+    '6160 Thunderbird Blvd, Vancouver, BC',
+    49.2617,
+    -123.2488,
+    'Vancouver',
+    '{"mon_fri":"06:00-23:00","sat_sun":"06:00-23:00"}',
+    12,
+    2800,
+    'hard',
+    true
+  );

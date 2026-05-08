@@ -1,0 +1,49 @@
+appId: com.rally.app
+# Prerequisites:
+#   - Two seeded test accounts (TEST_A and TEST_B) with overlapping availability
+#   - TEST_A has a calendar block that leaves 2h free on a known date
+#   - TEST_B has the same 2h free on that date
+#   - Both accounts in the same city
+#   - Run: npx maestro test .maestro/match-flow.yaml
+---
+- launchApp
+- assertVisible: "Schedule a match"
+
+# Tap a player card — requires TEST_B to appear in TEST_A's nearby list
+- tapOn:
+    id: "player-card-0"
+
+# Profile sheet should open
+- assertVisible: "Schedule a match"
+- tapOn: "Schedule a match"
+
+# Picker screen
+- assertVisible: "This week"
+- assertVisible: "Next 14 days"
+# Select first available slot
+- tapOn:
+    index: 0
+    text: ".*"
+    regex: true
+- assertVisible: "Continue"
+- tapOn: "Continue"
+
+# Confirm screen
+- assertVisible: "Confirm match"
+- assertVisible: "Book and add to calendar"
+- assertVisible: "Tennis match – Rally"
+- tapOn: "Book and add to calendar"
+
+# May show calendar permission dialog — grant it
+- optional:
+    - assertVisible: "Would Like to Access Your Calendar"
+    - tapOn: "Allow Full Access"
+
+# Booked screen
+- assertVisible: "Match scheduled"
+- assertVisible: "Your calendar event"
+- assertVisible: "Done"
+- tapOn: "Done"
+
+# Back on Hub
+- assertVisible: "Schedule a match"
