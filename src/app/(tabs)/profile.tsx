@@ -20,6 +20,7 @@ import { CalendarPermissionsPanel } from '@/components/feature/calendar-permissi
 import { useAuth } from '@/hooks/use-auth';
 import type { PreferredHours } from '@/hooks/use-profile';
 import { useProfile, useUpdateProfile } from '@/hooks/use-profile';
+import { haptics } from '@/lib/haptics';
 import { supabase } from '@/lib/supabase';
 import { colors } from '@/theme/colors';
 import { radii, spacing } from '@/theme/spacing';
@@ -80,6 +81,7 @@ export default function ProfileScreen(): ReactElement {
   const handleToggleHours = useCallback(
     async (key: HourKey): Promise<void> => {
       if (!profile) return;
+      haptics.light();
       const current: PreferredHours = profile.preferred_hours ?? {
         weekday_morning: false,
         weekday_evening: false,

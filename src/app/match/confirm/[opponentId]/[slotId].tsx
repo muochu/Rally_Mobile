@@ -1,8 +1,8 @@
-import type { ReactElement } from 'react';
-import { useCallback, useEffect, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeft, Calendar } from 'lucide-react-native';
+import type { ReactElement } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -13,6 +13,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
 import { CalendarEventPreview } from '@/components/feature/calendar-event-preview';
 import { Button } from '@/components/ui/button';
 import {
@@ -21,6 +22,7 @@ import {
   formatSlotDate,
   formatTimeRange,
 } from '@/lib/format-slot';
+import { haptics } from '@/lib/haptics';
 import { confirmMatch, UserFacingError } from '@/lib/match-flow';
 import { supabase } from '@/lib/supabase';
 import { colors } from '@/theme/colors';
@@ -55,6 +57,7 @@ export default function ConfirmScreen(): ReactElement {
     mutationFn: () =>
       confirmMatch({ opponentId, slotStart: start, slotEnd: end }),
     onSuccess: (result) => {
+      haptics.heavy();
       if (result.calendarDenied) setCalendarDeniedBanner(true);
       const encodedName = encodeURIComponent(opponentName);
       router.replace(
@@ -64,6 +67,7 @@ export default function ConfirmScreen(): ReactElement {
       );
     },
     onError: (err) => {
+      haptics.error();
       if (err instanceof UserFacingError) {
         Alert.alert('Slot no longer available', err.message, [
           {

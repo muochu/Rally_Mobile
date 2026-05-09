@@ -4,7 +4,6 @@ import { useRouter } from 'expo-router';
 import type { ReactElement } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   Linking,
   Pressable,
   RefreshControl,
@@ -19,6 +18,10 @@ import { FreeWindowCard } from '@/components/feature/free-window-card';
 import type { NearbyPlayer } from '@/components/feature/player-card';
 import { PlayerCard } from '@/components/feature/player-card';
 import { PlayerProfileSheet } from '@/components/feature/player-profile-sheet';
+import {
+  SkeletonFreeWindowCard,
+  SkeletonPlayerCard,
+} from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/use-auth';
 import { syncAvailability } from '@/hooks/use-availability-sync';
 import { useFreeWindows } from '@/hooks/use-free-windows';
@@ -26,6 +29,7 @@ import { useNearbyPlayers } from '@/hooks/use-nearby-players';
 import { useProfile } from '@/hooks/use-profile';
 import { trackEvent } from '@/lib/analytics';
 import type { BusyInterval, FreeSlot } from '@/lib/calendar/types';
+import { haptics } from '@/lib/haptics';
 import { colors } from '@/theme/colors';
 import { radii, spacing } from '@/theme/spacing';
 
@@ -108,6 +112,7 @@ export default function HubScreen(): ReactElement {
         queryKey: ['availability-blocks'],
       });
       await queryClient.invalidateQueries({ queryKey: ['nearby-players'] });
+      haptics.success();
     } finally {
       setIsRefreshing(false);
     }
@@ -121,6 +126,7 @@ export default function HubScreen(): ReactElement {
     }
     const { status } = await Calendar.requestCalendarPermissionsAsync();
     if (status === 'granted') {
+      haptics.success();
       setCalendarDenied(false);
       setCalendarConnected(true);
       trackEvent('calendar_connected', { provider: 'apple' });
@@ -181,10 +187,15 @@ export default function HubScreen(): ReactElement {
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Your free windows</Text>
               {windowsLoading ? (
-                <ActivityIndicator
-                  color={colors.accent.primary}
-                  style={styles.loader}
-                />
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.cardScroll}
+                >
+                  {[0, 1, 2].map((i) => (
+                    <SkeletonFreeWindowCard key={i} />
+                  ))}
+                </ScrollView>
               ) : daySummaries.length === 0 ? (
                 <Text style={styles.emptySection}>
                   No free time found. Add events to your calendar to see gaps.
@@ -207,7 +218,10 @@ export default function HubScreen(): ReactElement {
                 <Pressable
                   key={f}
                   style={[styles.chip, skillFilter === f && styles.chipActive]}
-                  onPress={() => setSkillFilter(f)}
+                  onPress={() => {
+                    haptics.light();
+                    setSkillFilter(f);
+                  }}
                   accessibilityRole="button"
                   accessibilityLabel={
                     f === 'all' ? 'All skill levels' : 'Similar UTR'
@@ -229,10 +243,14 @@ export default function HubScreen(): ReactElement {
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Players nearby</Text>
               {playersLoading ? (
-                <ActivityIndicator
-                  color={colors.accent.primary}
-                  style={styles.loader}
-                />
+                <View style={styles.playerList}>
+                  {[0, 1, 2].map((i) => (
+                    <View key={i}>
+                      {i > 0 && <View style={styles.divider} />}
+                      <SkeletonPlayerCard />
+                    </View>
+                  ))}
+                </View>
               ) : filteredPlayers.length === 0 ? (
                 <View style={styles.noPlayersState}>
                   <Text style={styles.emptyTitle}>No players nearby yet</Text>

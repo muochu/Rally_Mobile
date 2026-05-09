@@ -24,6 +24,7 @@ import {
   submitReview,
   useMatches,
 } from '@/hooks/use-matches';
+import { haptics } from '@/lib/haptics';
 import { colors } from '@/theme/colors';
 import { spacing } from '@/theme/spacing';
 
@@ -60,6 +61,7 @@ export default function MatchesScreen(): ReactElement {
             text: 'Cancel match',
             style: 'destructive',
             onPress: (): void => {
+              haptics.medium();
               void cancelMatch(match.id, match.myCalEventId).then(invalidate);
             },
           },
@@ -71,6 +73,7 @@ export default function MatchesScreen(): ReactElement {
 
   const handleMarkComplete = useCallback(
     (matchId: string): void => {
+      haptics.success();
       void markMatchComplete(matchId).then(invalidate);
     },
     [invalidate],
@@ -84,6 +87,7 @@ export default function MatchesScreen(): ReactElement {
           text: 'Decline',
           style: 'destructive',
           onPress: (): void => {
+            haptics.medium();
             void declineRequest(requestId).then(invalidate);
           },
         },
