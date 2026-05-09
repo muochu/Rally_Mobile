@@ -1,8 +1,8 @@
-import type { ReactElement } from 'react';
-import { useCallback, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeft } from 'lucide-react-native';
+import type { ReactElement } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -12,17 +12,17 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/use-auth';
 import type { BusyInterval } from '@/lib/calendar/types';
 import {
   encodeSlotId,
-  formatDuration,
   formatSlotDate,
   formatTimeRange,
 } from '@/lib/format-slot';
 import type { FreeSlot } from '@/lib/overlap';
-import { findMutualFreeSlots } from '@/lib/overlap';
+import { findMutualFreeSlots, sliceToMatchSlots } from '@/lib/overlap';
 import { supabase } from '@/lib/supabase';
 import { colors } from '@/theme/colors';
 import { radii, spacing } from '@/theme/spacing';
@@ -91,6 +91,26 @@ export default function PickerScreen(): ReactElement {
     });
   }, [data, lookahead]);
 
+  type DayGroup = { dateKey: string; dateLabel: string; slots: FreeSlot[] };
+
+  const dayGroups = useMemo((): DayGroup[] => {
+    const sliced = sliceToMatchSlots(mutualSlots);
+    const byDay = new Map<string, DayGroup>();
+    for (const slot of sliced) {
+      const d = slot.start;
+      const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+      if (!byDay.has(key)) {
+        byDay.set(key, {
+          dateKey: key,
+          dateLabel: formatSlotDate(d),
+          slots: [],
+        });
+      }
+      byDay.get(key)!.slots.push(slot);
+    }
+    return [...byDay.values()];
+  }, [mutualSlots]);
+
   const handleContinue = useCallback((): void => {
     if (!selectedSlot) return;
     const slotId = encodeSlotId(selectedSlot.start, selectedSlot.end);
@@ -102,8 +122,9 @@ export default function PickerScreen(): ReactElement {
     );
   }, [selectedSlot, opponentId, opponentName, router]);
 
+  const totalSlots = dayGroups.reduce((n, g) => n + g.slots.length, 0);
   const noSlotsIn7 =
-    !isLoading && !error && lookahead === 7 && mutualSlots.length === 0;
+    !isLoading && !error && lookahead === 7 && totalSlots === 0;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -164,7 +185,7 @@ export default function PickerScreen(): ReactElement {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {mutualSlots.length === 0 ? (
+          {totalSlots === 0 ? (
             <View style={styles.emptyState}>
               <Text style={styles.emptyTitle}>
                 {noSlotsIn7
@@ -189,62 +210,55 @@ export default function PickerScreen(): ReactElement {
           ) : (
             <View style={styles.slotList}>
               <Text style={styles.sectionTitle}>
-                {mutualSlots.length} time{mutualSlots.length !== 1 ? 's' : ''}{' '}
-                you're both free
+                {totalSlots} time{totalSlots !== 1 ? 's' : ''} you're both free
               </Text>
-              {mutualSlots.map((slot, i) => {
-                const isSelected =
-                  selectedSlot?.start.getTime() === slot.start.getTime() &&
-                  selectedSlot?.end.getTime() === slot.end.getTime();
-                return (
-                  <Pressable
-                    key={i}
-                    style={[
-                      styles.slotRow,
-                      isSelected && styles.slotRowSelected,
-                    ]}
-                    onPress={() => setSelectedSlot(slot)}
-                    accessibilityRole="radio"
-                    accessibilityState={{ checked: isSelected }}
-                    accessibilityLabel={`${formatSlotDate(slot.start)}, ${formatTimeRange(slot.start, slot.end)}, ${formatDuration(slot.start, slot.end)}`}
-                  >
-                    <View style={styles.slotInfo}>
-                      <Text
+              {dayGroups.map(({ dateKey, dateLabel, slots }) => (
+                <View key={dateKey}>
+                  <Text style={styles.dayHeader}>{dateLabel}</Text>
+                  {slots.map((slot, i) => {
+                    const isSelected =
+                      selectedSlot?.start.getTime() === slot.start.getTime();
+                    return (
+                      <Pressable
+                        key={i}
                         style={[
-                          styles.slotDate,
-                          isSelected && styles.slotDateSelected,
+                          styles.slotRow,
+                          isSelected && styles.slotRowSelected,
                         ]}
+                        onPress={(): void => setSelectedSlot(slot)}
+                        accessibilityRole="radio"
+                        accessibilityState={{ checked: isSelected }}
+                        accessibilityLabel={`${dateLabel}, ${formatTimeRange(slot.start, slot.end)}`}
                       >
-                        {formatSlotDate(slot.start)}
-                      </Text>
-                      <Text
-                        style={[
-                          styles.slotTime,
-                          isSelected && styles.slotTimeSelected,
-                        ]}
-                      >
-                        {formatTimeRange(slot.start, slot.end)}
-                      </Text>
-                    </View>
-                    <Text
-                      style={[
-                        styles.slotDuration,
-                        isSelected && styles.slotDurationSelected,
-                      ]}
-                    >
-                      {formatDuration(slot.start, slot.end)}
-                    </Text>
-                    <View
-                      style={[
-                        styles.radioOuter,
-                        isSelected && styles.radioOuterSelected,
-                      ]}
-                    >
-                      {isSelected && <View style={styles.radioInner} />}
-                    </View>
-                  </Pressable>
-                );
-              })}
+                        <Text
+                          style={[
+                            styles.slotTime,
+                            isSelected && styles.slotTimeSelected,
+                          ]}
+                        >
+                          {formatTimeRange(slot.start, slot.end)}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.slotDuration,
+                            isSelected && styles.slotDurationSelected,
+                          ]}
+                        >
+                          2h
+                        </Text>
+                        <View
+                          style={[
+                            styles.radioOuter,
+                            isSelected && styles.radioOuterSelected,
+                          ]}
+                        >
+                          {isSelected && <View style={styles.radioInner} />}
+                        </View>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              ))}
             </View>
           )}
         </ScrollView>
@@ -370,43 +384,40 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     marginBottom: spacing.md,
   },
+  dayHeader: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.text.tertiary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    marginTop: spacing.lg,
+    marginBottom: spacing.sm,
+  },
   slotList: {
-    gap: spacing.sm,
+    gap: spacing.xs,
   },
   slotRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 56,
+    height: 48,
     backgroundColor: colors.background.elevated,
     borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.border.primary,
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
   },
   slotRowSelected: {
     borderColor: colors.accent.primary,
     backgroundColor: colors.accent.soft,
   },
-  slotInfo: {
-    flex: 1,
-    gap: 2,
-  },
-  slotDate: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: colors.text.primary,
-  },
-  slotDateSelected: {
-    color: colors.accent.primary,
-  },
   slotTime: {
-    fontSize: 13,
-    color: colors.text.secondary,
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '500',
+    color: colors.text.primary,
   },
   slotTimeSelected: {
     color: colors.accent.primary,
-    opacity: 0.85,
   },
   slotDuration: {
     fontSize: 13,

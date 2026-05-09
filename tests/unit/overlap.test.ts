@@ -1,8 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
 import type { BusyInterval } from '@/lib/calendar/types';
-import { findMutualFreeSlots } from '@/lib/overlap';
+import { findMutualFreeSlots, SLOT_LEAD_MINUTES } from '@/lib/overlap';
 
 const FIXED_NOW = new Date('2026-01-01T08:00:00.000Z');
+const LEAD_MS = SLOT_LEAD_MINUTES * 60 * 1000;
+const WINDOW_START = new Date(FIXED_NOW.getTime() + LEAD_MS);
 
 const hoursFromNow = (h: number): Date =>
   new Date(FIXED_NOW.getTime() + h * 60 * 60 * 1000);
@@ -33,27 +36,28 @@ describe('findMutualFreeSlots', () => {
   it('returns entire window when both have no busy blocks', () => {
     const slots = findMutualFreeSlots([], [], opts(1, 30));
     expect(slots).toHaveLength(1);
-    expect(slots[0].start.getTime()).toBe(FIXED_NOW.getTime());
-    expect(slots[0].end.getTime()).toBe(hoursFromNow(24).getTime());
+    expect(slots[0].start.getTime()).toBe(WINDOW_START.getTime());
+    expect(slots[0].end.getTime()).toBe(
+      new Date(WINDOW_START.getTime() + 24 * 60 * 60 * 1000).getTime(),
+    );
   });
 
   it('returns empty when one player is busy the entire window', () => {
-    const slots = findMutualFreeSlots([busy(0, 24)], [], opts(1, 30));
+    const slots = findMutualFreeSlots([busy(-0.5, 24.5)], [], opts(1, 30));
     expect(slots).toHaveLength(0);
   });
 
   it('returns empty when combined busy blocks cover the window', () => {
     const slots = findMutualFreeSlots(
-      [busy(0, 12)],
-      [busy(12, 24)],
+      [busy(-0.5, 12)],
+      [busy(12, 24.5)],
       opts(1, 30),
     );
     expect(slots).toHaveLength(0);
   });
 
   it('excludes gaps shorter than minDurationMinutes', () => {
-    // Gap of 20 min between busy(0,9) and busy(9.33,24) → shorter than 30 min min
-    const slots = findMutualFreeSlots([busy(0, 9), busy(9.33, 24)], [], {
+    const slots = findMutualFreeSlots([busy(-0.5, 9), busy(9.33, 24.5)], [], {
       lookaheadDays: 1,
       minDurationMinutes: 30,
     });
@@ -61,8 +65,7 @@ describe('findMutualFreeSlots', () => {
   });
 
   it('includes gaps that exactly meet minDurationMinutes', () => {
-    // Exact 30-min gap between 9h and 9.5h
-    const slots = findMutualFreeSlots([busy(0, 9), busy(9.5, 24)], [], {
+    const slots = findMutualFreeSlots([busy(-0.5, 9), busy(9.5, 24.5)], [], {
       lookaheadDays: 1,
       minDurationMinutes: 30,
     });
@@ -72,17 +75,14 @@ describe('findMutualFreeSlots', () => {
   });
 
   it('finds free slots between two different schedules', () => {
-    // A busy: 0-2, 6-8  |  B busy: 3-5, 10-12
-    // Combined merged: 0-2, 3-5, 6-8, 10-12
-    // Free: [2-3], [5-6], [8-10], [12-24]
     const slots = findMutualFreeSlots(
-      [busy(0, 2), busy(6, 8)],
+      [busy(2, 4), busy(6, 8)],
       [busy(3, 5), busy(10, 12)],
       opts(1, 30),
     );
     expect(slots).toHaveLength(4);
-    expect(slots[0].start.getTime()).toBe(hoursFromNow(2).getTime());
-    expect(slots[0].end.getTime()).toBe(hoursFromNow(3).getTime());
+    expect(slots[0].start.getTime()).toBe(WINDOW_START.getTime());
+    expect(slots[0].end.getTime()).toBe(hoursFromNow(2).getTime());
     expect(slots[3].start.getTime()).toBe(hoursFromNow(12).getTime());
   });
 
@@ -92,7 +92,9 @@ describe('findMutualFreeSlots', () => {
       minDurationMinutes: 30,
     });
     expect(slots).toHaveLength(1);
-    expect(slots[0].end.getTime()).toBe(hoursFromNow(7 * 24).getTime());
+    expect(slots[0].end.getTime()).toBe(
+      new Date(WINDOW_START.getTime() + 7 * 24 * 60 * 60 * 1000).getTime(),
+    );
   });
 
   it('ignores busy blocks that end before window start', () => {
@@ -102,11 +104,10 @@ describe('findMutualFreeSlots', () => {
     };
     const slots = findMutualFreeSlots([priorBusy], [], opts(1, 30));
     expect(slots).toHaveLength(1);
-    expect(slots[0].start.getTime()).toBe(FIXED_NOW.getTime());
+    expect(slots[0].start.getTime()).toBe(WINDOW_START.getTime());
   });
 
   it('clips busy block that straddles window start', () => {
-    // Busy from -2h to 6h → free starts at 6h, not now
     const slots = findMutualFreeSlots([busy(-2, 6)], [], opts(1, 30));
     expect(slots).toHaveLength(1);
     expect(slots[0].start.getTime()).toBe(hoursFromNow(6).getTime());
@@ -126,7 +127,6 @@ describe('findMutualFreeSlots', () => {
   });
 
   it('handles overlapping busy across both players', () => {
-    // A and B both busy 9-11 and 14-16 — result same as if one player had both
     const slots = findMutualFreeSlots(
       [busy(9, 11)],
       [busy(14, 16)],
@@ -135,7 +135,6 @@ describe('findMutualFreeSlots', () => {
     expect(
       slots.every((s) => s.end.getTime() - s.start.getTime() >= 30 * 60 * 1000),
     ).toBe(true);
-    // Free: [0-9], [11-14], [16-24]
     expect(slots).toHaveLength(3);
   });
 });

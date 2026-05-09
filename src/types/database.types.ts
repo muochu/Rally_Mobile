@@ -179,6 +179,27 @@ export type Database = {
         Args: { player_id: string; from_time: string; to_time: string };
         Returns: { start_time: string; end_time: string }[];
       };
+      get_courts_in_bounds: {
+        Args: {
+          sw_lat: number;
+          sw_lng: number;
+          ne_lat: number;
+          ne_lng: number;
+        };
+        Returns: {
+          id: string;
+          name: string;
+          address: string | null;
+          latitude: number;
+          longitude: number;
+          city: string | null;
+          court_count: number;
+          fee_per_hour_cents: number | null;
+          surface: string | null;
+          indoor: boolean;
+          upcoming_matches_count: number;
+        }[];
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
