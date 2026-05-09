@@ -2,9 +2,10 @@ import { useQueryClient } from '@tanstack/react-query';
 import * as Calendar from 'expo-calendar';
 import { useRouter } from 'expo-router';
 import type { ReactElement } from 'react';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Linking,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -22,8 +23,9 @@ import { useAuth } from '@/hooks/use-auth';
 import { syncAvailability } from '@/hooks/use-availability-sync';
 import { useFreeWindows } from '@/hooks/use-free-windows';
 import { useNearbyPlayers } from '@/hooks/use-nearby-players';
-import type { BusyInterval } from '@/lib/calendar/types';
-import type { FreeSlot } from '@/lib/overlap';
+import { useProfile } from '@/hooks/use-profile';
+import { trackEvent } from '@/lib/analytics';
+import type { BusyInterval, FreeSlot } from '@/lib/calendar/types';
 import { colors } from '@/theme/colors';
 import { radii, spacing } from '@/theme/spacing';
 
@@ -42,19 +44,28 @@ export default function HubScreen(): ReactElement {
   const [skillFilter, setSkillFilter] = useState<SkillFilter>('all');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [calendarDenied, setCalendarDenied] = useState(false);
+  const [calendarConnected, setCalendarConnected] = useState(false);
+
+  useEffect((): void => {
+    Calendar.getCalendarPermissionsAsync().then(({ status }) => {
+      if (status === 'granted') setCalendarConnected(true);
+    });
+  }, []);
+
+  const { profile } = useProfile(userId);
+  const preferred = profile?.preferred_hours ?? null;
 
   const {
-    freeWindows,
+    daySummaries,
     isLoading: windowsLoading,
     hasBlocks,
-  } = useFreeWindows(userId);
+  } = useFreeWindows(userId, preferred);
 
-  // Pass an empty busy array to useNearbyPlayers — mutual slots computed from raw busy_intervals
-  // returned by the RPC vs. the current user's blocks fetched inside useNearbyPlayers itself.
   const emptyBusy = useMemo((): BusyInterval[] => [], []);
   const { players, isLoading: playersLoading } = useNearbyPlayers(
     userId,
     emptyBusy,
+    preferred,
   );
 
   const filteredPlayers = useMemo(() => {
@@ -103,9 +114,16 @@ export default function HubScreen(): ReactElement {
   }, [queryClient]);
 
   const handleConnectCalendar = useCallback(async (): Promise<void> => {
+    const existing = await Calendar.getCalendarPermissionsAsync();
+    if (existing.status === 'denied' && !existing.canAskAgain) {
+      await Linking.openSettings();
+      return;
+    }
     const { status } = await Calendar.requestCalendarPermissionsAsync();
     if (status === 'granted') {
       setCalendarDenied(false);
+      setCalendarConnected(true);
+      trackEvent('calendar_connected', { provider: 'apple' });
       await syncAvailability();
       await queryClient.invalidateQueries({
         queryKey: ['availability-blocks'],
@@ -115,7 +133,7 @@ export default function HubScreen(): ReactElement {
     }
   }, [queryClient]);
 
-  const showCalendarEmpty = !hasBlocks && !windowsLoading;
+  const showCalendarEmpty = !calendarConnected && !hasBlocks && !windowsLoading;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -167,10 +185,9 @@ export default function HubScreen(): ReactElement {
                   color={colors.accent.primary}
                   style={styles.loader}
                 />
-              ) : freeWindows.length === 0 ? (
+              ) : daySummaries.length === 0 ? (
                 <Text style={styles.emptySection}>
-                  No free windows found. Pull down to refresh or add events to
-                  your calendar.
+                  No free time found. Add events to your calendar to see gaps.
                 </Text>
               ) : (
                 <ScrollView
@@ -178,8 +195,8 @@ export default function HubScreen(): ReactElement {
                   showsHorizontalScrollIndicator={false}
                   contentContainerStyle={styles.cardScroll}
                 >
-                  {freeWindows.map((slot, i) => (
-                    <FreeWindowCard key={i} slot={slot} />
+                  {daySummaries.map((s) => (
+                    <FreeWindowCard key={s.dateKey} summary={s} />
                   ))}
                 </ScrollView>
               )}

@@ -6,6 +6,19 @@ interface RequestBody {
   opponentId: string;
 }
 
+const sendPush = async (
+  token: string,
+  title: string,
+  body: string,
+  data: Record<string, string>,
+): Promise<void> => {
+  await fetch('https://exp.host/--/api/v2/push/send', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ to: token, title, body, data, sound: 'default' }),
+  });
+};
+
 serve(async (req: Request): Promise<Response> => {
   try {
     const { matchId, opponentId } = (await req.json()) as RequestBody;
@@ -15,27 +28,19 @@ serve(async (req: Request): Promise<Response> => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
     );
 
-    // Look up opponent's push token (column added in Phase 7)
     const { data: profile } = await supabase
       .from('profiles')
-      .select('full_name')
+      .select('full_name, push_token')
       .eq('id', opponentId)
       .single();
 
-    // Send push if token exists (Phase 7 wires this fully)
-    const pushToken: string | null = null; // replaced with profile.push_token in Phase 7
-
-    if (pushToken) {
-      await fetch('https://exp.host/--/api/v2/push/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          to: pushToken,
-          title: 'Match scheduled',
-          body: `${profile?.full_name ?? 'A player'} booked a match with you.`,
-          data: { screen: 'match', matchId },
-        }),
-      });
+    if (profile?.push_token) {
+      await sendPush(
+        profile.push_token,
+        'Match confirmed!',
+        `${profile.full_name} booked a tennis match with you.`,
+        { screen: '/(tabs)/matches', matchId },
+      );
     }
 
     return new Response(JSON.stringify({ ok: true }), {

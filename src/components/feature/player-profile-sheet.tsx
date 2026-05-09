@@ -8,10 +8,12 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
 import { Button } from '@/components/ui/button';
 import type { FreeSlot } from '@/lib/overlap';
 import { colors } from '@/theme/colors';
 import { radii, spacing } from '@/theme/spacing';
+
 import type { NearbyPlayer } from './player-card';
 
 interface PlayerProfileSheetProps {
@@ -115,8 +117,9 @@ export function PlayerProfileSheet({
 
                 <View style={styles.section}>
                   <Text style={styles.sectionTitle}>
-                    {player.overlap_count} shared window
-                    {player.overlap_count !== 1 ? 's' : ''} in the next 14 days
+                    {player.overlap_count > 0
+                      ? `${player.overlap_count} day${player.overlap_count !== 1 ? 's' : ''} you could play`
+                      : 'No mutual time in the next 14 days'}
                   </Text>
                   {mutualSlots.slice(0, 3).map((slot, i) => (
                     <View key={i} style={styles.slotRow}>
@@ -126,7 +129,7 @@ export function PlayerProfileSheet({
                   ))}
                   {mutualSlots.length === 0 && (
                     <Text style={styles.noSlots}>
-                      No mutual time in the next 14 days
+                      Try expanding your availability in your calendar.
                     </Text>
                   )}
                 </View>

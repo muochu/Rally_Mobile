@@ -24,6 +24,7 @@ type ProfileRow = {
   preferred_sport: string;
   preferred_hours: PreferredHoursJson | null;
   home_court_id: string | null;
+  push_token: string | null;
   created_at: string;
   updated_at: string;
 };

@@ -9,16 +9,44 @@ export const MATCH_DURATION_MINUTES = 120;
 const STEP_MS = 30 * 60 * 1000;
 const MATCH_MS = MATCH_DURATION_MINUTES * 60 * 1000;
 const MIN_START_HOUR = 7;
-const MAX_START_HOUR = 21;
+const MAX_START_HOUR = 20; // 8pm latest start → 10pm latest end
 
-export const sliceToMatchSlots = (windows: FreeSlot[]): FreeSlot[] => {
+export type PreferredHours = {
+  weekday_morning: boolean;
+  weekday_evening: boolean;
+  weekend: boolean;
+};
+
+const isInPreferredHours = (date: Date, preferred: PreferredHours): boolean => {
+  const day = date.getDay();
+  const hour = date.getHours();
+  const isWeekend = day === 0 || day === 6;
+  if (isWeekend) return preferred.weekend;
+  if (preferred.weekday_morning && hour >= 7 && hour < 12) return true;
+  if (preferred.weekday_evening && hour >= 17 && hour <= 21) return true;
+  return false;
+};
+
+export const sliceToMatchSlots = (
+  windows: FreeSlot[],
+  preferred?: PreferredHours | null,
+): FreeSlot[] => {
+  const hasPreference =
+    preferred != null &&
+    (preferred.weekday_morning ||
+      preferred.weekday_evening ||
+      preferred.weekend);
+
   const slots: FreeSlot[] = [];
   for (const window of windows) {
     const snapped = Math.ceil(window.start.getTime() / STEP_MS) * STEP_MS;
     let cursor = snapped;
     while (cursor + MATCH_MS <= window.end.getTime()) {
-      const h = new Date(cursor).getHours();
-      if (h >= MIN_START_HOUR && h <= MAX_START_HOUR) {
+      const d = new Date(cursor);
+      const h = d.getHours();
+      const inCore = h >= MIN_START_HOUR && h <= MAX_START_HOUR;
+      const inPreferred = !hasPreference || isInPreferredHours(d, preferred!);
+      if (inCore && inPreferred) {
         slots.push({
           start: new Date(cursor),
           end: new Date(cursor + MATCH_MS),

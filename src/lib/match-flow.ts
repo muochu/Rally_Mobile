@@ -1,4 +1,7 @@
 import * as Calendar from 'expo-calendar';
+
+import { trackEvent } from '@/lib/analytics';
+
 import type { BusyInterval } from './calendar/types';
 import { supabase } from './supabase';
 
@@ -123,6 +126,8 @@ export const confirmMatch = async (
   } catch {
     calendarDenied = true;
   }
+
+  trackEvent('match_confirmed');
 
   // Notify opponent (fire and forget — graceful if edge function not deployed)
   void supabase.functions.invoke('notify-match-confirmed', {

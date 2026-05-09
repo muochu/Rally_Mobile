@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { z } from 'zod';
 
 import { Button } from '@/components/ui/button';
+import { trackEvent } from '@/lib/analytics';
 import { routeAfterAuth } from '@/lib/auth';
 import { reportError, UserFacingError } from '@/lib/errors';
 import { supabase } from '@/lib/supabase';
@@ -81,6 +82,7 @@ export default function EmailSignInScreen(): ReactElement {
           'Could not create account. Please try again.',
         );
       if (signUpData.session) {
+        trackEvent('signed_up');
         await routeAfterAuth(signUpData.session.user.id, router);
       } else {
         setServerError(

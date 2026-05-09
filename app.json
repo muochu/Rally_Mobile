@@ -57,6 +57,12 @@
         {
           "locationWhenInUsePermission": "Rally uses your location to show nearby players and courts."
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "iosDisplayInForeground": true
+        }
       ]
     ],
     "experiments": {

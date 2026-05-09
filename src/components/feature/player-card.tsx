@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+
 import { colors } from '@/theme/colors';
 import { spacing } from '@/theme/spacing';
 
@@ -63,7 +64,7 @@ export function PlayerCard({ player, onPress }: PlayerCardProps): ReactElement {
 
       <View style={styles.overlap}>
         <Text style={styles.overlapCount}>{player.overlap_count}</Text>
-        <Text style={styles.overlapLabel}>windows</Text>
+        <Text style={styles.overlapLabel}>days free</Text>
       </View>
     </Pressable>
   );

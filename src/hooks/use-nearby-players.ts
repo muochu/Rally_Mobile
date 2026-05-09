@@ -1,8 +1,9 @@
-import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useMemo } from 'react';
+
 import type { BusyInterval } from '@/lib/calendar/types';
-import type { FreeSlot } from '@/lib/overlap';
-import { findMutualFreeSlots } from '@/lib/overlap';
+import type { FreeSlot, PreferredHours } from '@/lib/overlap';
+import { findMutualFreeSlots, sliceToMatchSlots } from '@/lib/overlap';
 import { supabase } from '@/lib/supabase';
 
 const LOOKAHEAD_DAYS = 14;
@@ -23,6 +24,7 @@ export interface NearbyPlayerWithSlots {
 export const useNearbyPlayers = (
   userId: string | undefined,
   myBusy: BusyInterval[],
+  preferred?: PreferredHours | null,
 ): {
   players: NearbyPlayerWithSlots[];
   isLoading: boolean;
@@ -52,10 +54,17 @@ export const useNearbyPlayers = (
           }),
         );
 
-        const mutual_slots = findMutualFreeSlots(myBusy, theirBusy, {
+        const windows = findMutualFreeSlots(myBusy, theirBusy, {
           lookaheadDays: LOOKAHEAD_DAYS,
           minDurationMinutes: MIN_MATCH_MINUTES,
         });
+        const mutual_slots = sliceToMatchSlots(windows, preferred);
+        const uniqueDays = new Set(
+          mutual_slots.map((s) => {
+            const d = s.start;
+            return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+          }),
+        ).size;
 
         return {
           id: p.id,
@@ -65,7 +74,7 @@ export const useNearbyPlayers = (
           city: p.city,
           home_court_name: p.home_court_name,
           distance_km: p.distance_km,
-          overlap_count: mutual_slots.length,
+          overlap_count: uniqueDays,
           mutual_slots,
         };
       })

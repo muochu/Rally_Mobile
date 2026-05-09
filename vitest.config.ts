@@ -11,5 +11,11 @@ export default defineConfig({
     include: ['tests/unit/**/*.test.ts'],
     environment: 'node',
     setupFiles: ['dotenv/config'],
+    server: {
+      deps: {
+        // Prevent native packages from being loaded in Node test env
+        inline: ['posthog-react-native'],
+      },
+    },
   },
 });

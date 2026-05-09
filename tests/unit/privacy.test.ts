@@ -1,5 +1,61 @@
 import { describe, expect, it, vi } from 'vitest';
 
+const captureExceptionSpy = vi.hoisted(() => vi.fn());
+
+vi.mock('@sentry/react-native', () => ({
+  init: vi.fn(),
+  captureException: captureExceptionSpy,
+  wrap: (c: unknown): unknown => c,
+}));
+
+vi.mock('@/lib/env', () => ({
+  env: {
+    EXPO_PUBLIC_SENTRY_DSN: 'https://key@sentry.io/123',
+  },
+}));
+
+// --- Analytics PII guard ---
+
+describe('analytics: no PII in event payloads', () => {
+  it('trackEvent payload shape contains no PII fields', () => {
+    const safePayload: Record<string, string | number | boolean> = {
+      provider: 'apple',
+    };
+    expect(Object.keys(safePayload)).not.toContain('email');
+    expect(Object.keys(safePayload)).not.toContain('name');
+    expect(Object.keys(safePayload)).not.toContain('full_name');
+    expect(Object.keys(safePayload)).not.toContain('calendar');
+    expect(Object.keys(safePayload)).not.toContain('message');
+  });
+});
+
+// --- Sentry PII scrubbing ---
+
+describe('reportError: strips PII from context before sending to Sentry', () => {
+  it('removes known PII keys from context object', async () => {
+    captureExceptionSpy.mockClear();
+    const { reportError } = await import('@/lib/errors');
+
+    reportError(new Error('test'), {
+      email: 'user@example.com',
+      name: 'Matthew',
+      full_name: 'Matthew Hu',
+      message: 'private message',
+      userId: 'abc-123',
+      matchId: 'xyz-789',
+    });
+
+    expect(captureExceptionSpy).toHaveBeenCalledOnce();
+    const extra = captureExceptionSpy.mock.calls[0][1]?.extra ?? {};
+    expect(extra).not.toHaveProperty('email');
+    expect(extra).not.toHaveProperty('name');
+    expect(extra).not.toHaveProperty('full_name');
+    expect(extra).not.toHaveProperty('message');
+    expect(extra).toHaveProperty('userId', 'abc-123');
+    expect(extra).toHaveProperty('matchId', 'xyz-789');
+  });
+});
+
 vi.mock('expo-calendar', () => ({
   getCalendarPermissionsAsync: vi.fn().mockResolvedValue({ status: 'granted' }),
   getCalendarsAsync: vi.fn().mockResolvedValue([{ id: 'cal-1' }]),

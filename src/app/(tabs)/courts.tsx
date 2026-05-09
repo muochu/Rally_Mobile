@@ -1,5 +1,6 @@
 import MapboxGL from '@rnmapbox/maps';
-import { Search, X } from 'lucide-react-native';
+import * as Location from 'expo-location';
+import { Crosshair, Search, X } from 'lucide-react-native';
 import type { ReactElement } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -65,6 +66,14 @@ export default function CourtsScreen(): ReactElement {
         if (data?.home_court_id) setHomeCourtState(data.home_court_id);
       });
   }, [userId]);
+
+  useEffect(() => {
+    Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
+      .then(({ coords }) => {
+        cameraRef.current?.flyTo([coords.longitude, coords.latitude], 0);
+      })
+      .catch(() => {});
+  }, []);
 
   const handleMapIdle = useCallback((state: MapboxGL.MapState): void => {
     const { bounds: b } = state.properties;
@@ -133,6 +142,14 @@ export default function CourtsScreen(): ReactElement {
   const handleClearSearch = useCallback((): void => {
     setSearchText('');
     setSuggestions([]);
+  }, []);
+
+  const handleLocateMe = useCallback((): void => {
+    Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
+      .then(({ coords }) => {
+        cameraRef.current?.flyTo([coords.longitude, coords.latitude], 500);
+      })
+      .catch(() => {});
   }, []);
 
   const handleCourtSelect = useCallback((court: Court): void => {
@@ -260,6 +277,18 @@ export default function CourtsScreen(): ReactElement {
           ))}
         </MapboxGL.MapView>
 
+        <Pressable
+          style={styles.locateBtn}
+          onPress={handleLocateMe}
+          hitSlop={8}
+        >
+          <Crosshair
+            size={18}
+            color={colors.accent.primary}
+            strokeWidth={1.75}
+          />
+        </Pressable>
+
         {isLoading && (
           <View style={styles.mapLoader}>
             <ActivityIndicator color={colors.accent.primary} />
@@ -350,6 +379,24 @@ const styles = StyleSheet.create({
   },
   map: {
     flex: 1,
+  },
+  locateBtn: {
+    position: 'absolute',
+    bottom: spacing.md,
+    right: spacing.md,
+    width: 40,
+    height: 40,
+    backgroundColor: colors.background.elevated,
+    borderRadius: radii.full,
+    borderWidth: 1,
+    borderColor: colors.border.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
   },
   mapLoader: {
     position: 'absolute',

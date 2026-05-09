@@ -4,6 +4,7 @@ import * as Calendar from 'expo-calendar';
 import { useEffect } from 'react';
 import { Alert } from 'react-native';
 
+import { trackEvent } from '@/lib/analytics';
 import { supabase } from '@/lib/supabase';
 
 export type MatchWithOpponent = {
@@ -242,6 +243,7 @@ export const markMatchComplete = async (matchId: string): Promise<void> => {
       completed_at: new Date().toISOString(),
     })
     .eq('id', matchId);
+  trackEvent('match_completed');
 };
 
 export const submitReview = async (
