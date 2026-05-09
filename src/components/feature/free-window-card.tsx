@@ -32,7 +32,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.lg,
     padding: spacing.lg,
     marginRight: spacing.md,
-    width: 110,
+    width: 120,
     borderWidth: 1,
     borderColor: colors.border.primary,
     gap: 3,

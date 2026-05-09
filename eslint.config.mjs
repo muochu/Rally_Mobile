@@ -14,6 +14,7 @@ export default tseslint.config(
       'babel.config.js',
       'vitest.config.ts',
       'supabase/functions/**',
+      'plugins/**',
     ],
   },
   js.configs.recommended,

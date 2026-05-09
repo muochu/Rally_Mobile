@@ -19,7 +19,8 @@
       "usesAppleSignIn": true,
       "infoPlist": {
         "NSCalendarsFullAccessUsageDescription": "Rally reads only your free/busy times to find when you and other players can play. Event titles and details stay private.",
-        "NSLocationWhenInUseUsageDescription": "Rally uses your location to show nearby players and courts."
+        "NSLocationWhenInUseUsageDescription": "Rally uses your location to show nearby players and courts.",
+        "NSPhotoLibraryUsageDescription": "Rally uses photos for your profile picture."
       },
       "appleTeamId": "6HPNR46LH9"
     },
@@ -63,7 +64,8 @@
         {
           "iosDisplayInForeground": true
         }
-      ]
+      ],
+      "./plugins/withPrivacyManifest"
     ],
     "experiments": {
       "typedRoutes": true

@@ -5,6 +5,7 @@ import type { ReactElement } from 'react';
 import { useCallback, useState } from 'react';
 import {
   Alert,
+  Linking,
   Modal,
   Pressable,
   ScrollView,
@@ -234,6 +235,36 @@ export default function ProfileScreen(): ReactElement {
               <ChevronRight
                 size={16}
                 color={colors.status.error}
+                strokeWidth={1.75}
+              />
+            </Pressable>
+          </View>
+        </View>
+
+        {/* Legal */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Legal</Text>
+          <View style={styles.rowGroup}>
+            <Pressable
+              style={styles.row}
+              onPress={() => void Linking.openURL('https://rally.app/privacy')}
+            >
+              <Text style={styles.rowLabel}>Privacy Policy</Text>
+              <ChevronRight
+                size={16}
+                color={colors.text.tertiary}
+                strokeWidth={1.75}
+              />
+            </Pressable>
+            <View style={styles.rowDivider} />
+            <Pressable
+              style={styles.row}
+              onPress={() => void Linking.openURL('https://rally.app/terms')}
+            >
+              <Text style={styles.rowLabel}>Terms of Service</Text>
+              <ChevronRight
+                size={16}
+                color={colors.text.tertiary}
                 strokeWidth={1.75}
               />
             </Pressable>
