@@ -1,9 +1,18 @@
 import { describe, expect, it, vi } from 'vitest';
-
 import { isSlotStillFree } from '@/lib/match-flow';
 
 vi.mock('expo-calendar', () => ({}));
 vi.mock('@/lib/analytics', () => ({ trackEvent: vi.fn() }));
+vi.mock('@/lib/errors', () => ({
+  UserFacingError: class UserFacingError extends Error {
+    constructor(message: string) {
+      super(message);
+      this.name = 'UserFacingError';
+    }
+  },
+  reportError: vi.fn(),
+  wrapWithSentry: (fn: unknown): unknown => fn,
+}));
 vi.mock('@/lib/supabase', () => ({
   supabase: {
     auth: { getSession: vi.fn() },

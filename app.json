@@ -16,6 +16,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.rally.app",
+      "buildNumber": "1",
       "usesAppleSignIn": true,
       "infoPlist": {
         "NSCalendarsFullAccessUsageDescription": "Rally reads only your free/busy times to find when you and other players can play. Event titles and details stay private.",

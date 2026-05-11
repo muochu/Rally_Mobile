@@ -1,10 +1,9 @@
 import { useMutation } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowLeft, Calendar } from 'lucide-react-native';
+import { ArrowLeft } from 'lucide-react-native';
 import type { ReactElement } from 'react';
 import { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   Pressable,
   ScrollView,
@@ -12,7 +11,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import Animated, {
+import {
   useAnimatedStyle,
   useSharedValue,
   withSequence,
@@ -21,10 +20,10 @@ import Animated, {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CalendarEventPreview } from '@/components/feature/calendar-event-preview';
-import { Button } from '@/components/ui/button';
+import { ConfirmFooter } from '@/components/feature/confirm-footer';
+import { MatchSummaryCard } from '@/components/feature/match-summary-card';
 import {
   decodeSlotId,
-  formatDuration,
   formatSlotDate,
   formatTimeRange,
 } from '@/lib/format-slot';
@@ -164,44 +163,12 @@ export default function ConfirmScreen(): ReactElement {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Match summary */}
-        <View style={styles.summaryCard}>
-          <View style={styles.summaryRow}>
-            <Calendar
-              size={16}
-              color={colors.text.tertiary}
-              strokeWidth={1.5}
-            />
-            <Text style={styles.summaryValue}>{formatSlotDate(start)}</Text>
-          </View>
-          <View style={styles.divider} />
-          <View style={styles.summaryGrid}>
-            <View style={styles.summaryItem}>
-              <Text style={styles.summaryLabel}>Time</Text>
-              <Text style={styles.summaryValue}>
-                {formatTimeRange(start, end)}
-              </Text>
-            </View>
-            <View style={styles.summaryItem}>
-              <Text style={styles.summaryLabel}>Duration</Text>
-              <Text style={styles.summaryValue}>
-                {formatDuration(start, end)}
-              </Text>
-            </View>
-            <View style={styles.summaryItem}>
-              <Text style={styles.summaryLabel}>Opponent</Text>
-              <Text style={styles.summaryValue}>{opponentName}</Text>
-            </View>
-            {opponentUtr !== null && (
-              <View style={styles.summaryItem}>
-                <Text style={styles.summaryLabel}>UTR</Text>
-                <Text style={styles.summaryValue}>
-                  {opponentUtr.toFixed(1)}
-                </Text>
-              </View>
-            )}
-          </View>
-        </View>
+        <MatchSummaryCard
+          start={start}
+          end={end}
+          opponentName={opponentName}
+          opponentUtr={opponentUtr}
+        />
 
         {/* Calendar event preview */}
         <View style={styles.section}>
@@ -233,6 +200,8 @@ export default function ConfirmScreen(): ReactElement {
                 reset();
                 mutate();
               }}
+              accessibilityRole="button"
+              accessibilityLabel="Retry booking"
             >
               <Text style={styles.retryText}>Tap to retry</Text>
             </Pressable>
@@ -240,36 +209,14 @@ export default function ConfirmScreen(): ReactElement {
         )}
       </ScrollView>
 
-      <View style={styles.footer}>
-        {isBooked ? (
-          <Animated.View style={[styles.successBtn, bookedAnimStyle]}>
-            <Text style={styles.successBtnText}>
-              {isAccepting ? 'Accepted!' : 'Sent!'}
-            </Text>
-          </Animated.View>
-        ) : isPending ? (
-          <View style={styles.loadingRow}>
-            <ActivityIndicator color={colors.accent.primary} />
-            <Text style={styles.loadingText}>Booking match…</Text>
-          </View>
-        ) : (
-          <>
-            <Button
-              label={isAccepting ? 'Accept and book' : 'Send match request'}
-              onPress={handleConfirm}
-              fullWidth
-              disabled={isPending}
-            />
-            <Pressable
-              style={styles.cancelButton}
-              onPress={() => router.back()}
-              accessibilityRole="button"
-            >
-              <Text style={styles.cancelText}>Cancel</Text>
-            </Pressable>
-          </>
-        )}
-      </View>
+      <ConfirmFooter
+        isBooked={isBooked}
+        bookedAnimStyle={bookedAnimStyle}
+        isPending={isPending}
+        isAccepting={isAccepting}
+        onConfirm={handleConfirm}
+        onCancel={(): void => router.back()}
+      />
     </SafeAreaView>
   );
 }
@@ -307,44 +254,6 @@ const styles = StyleSheet.create({
     gap: spacing.xxl,
     paddingBottom: spacing.xxxl,
   },
-  summaryCard: {
-    backgroundColor: colors.background.elevated,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.border.primary,
-    padding: spacing.lg,
-    gap: spacing.md,
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  summaryGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.lg,
-  },
-  summaryItem: {
-    minWidth: '40%',
-    gap: 2,
-  },
-  summaryLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.text.tertiary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  summaryValue: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: colors.text.primary,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: colors.border.primary,
-  },
   section: {
     gap: spacing.sm,
   },
@@ -373,46 +282,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: colors.accent.primary,
-  },
-  footer: {
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.xxl,
-    paddingTop: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.border.primary,
-    gap: spacing.sm,
-  },
-  loadingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-    paddingVertical: spacing.md,
-  },
-  loadingText: {
-    fontSize: 15,
-    color: colors.text.secondary,
-  },
-  cancelButton: {
-    alignItems: 'center',
-    paddingVertical: spacing.md,
-  },
-  cancelText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: colors.text.secondary,
-  },
-  successBtn: {
-    height: 56,
-    borderRadius: radii.md,
-    backgroundColor: colors.status.success,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  successBtnText: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    letterSpacing: -0.3,
   },
 });

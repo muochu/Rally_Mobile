@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+
 import { PressableScale } from '@/components/ui/pressable-scale';
 import type { MatchWithOpponent, PendingRequest } from '@/hooks/use-matches';
 import { formatSlotDate, formatTimeRange } from '@/lib/format-slot';
@@ -8,42 +9,30 @@ import { radii, spacing } from '@/theme/spacing';
 
 const MARK_COMPLETE_DELAY_MS = 30 * 60 * 1000;
 
-// --- Discriminated union props ---
-
-type UpcomingCardProps = {
-  variant: 'upcoming';
-  match: MatchWithOpponent;
-  onCancel: () => void;
-  onMarkComplete: () => void;
-};
-
-type PastCardProps = {
-  variant: 'past';
-  match: MatchWithOpponent;
-  onReview?: () => void;
-  onRematch?: () => void;
-};
-
-type PendingIncomingProps = {
-  variant: 'pending-incoming';
-  request: PendingRequest;
-  onBook: () => void;
-  onDecline: () => void;
-};
-
-type PendingOutgoingProps = {
-  variant: 'pending-outgoing';
-  request: PendingRequest;
-  onCancelRequest: () => void;
-};
-
-type MatchCardProps =
-  | UpcomingCardProps
-  | PastCardProps
-  | PendingIncomingProps
-  | PendingOutgoingProps;
-
-// --- Sub-components ---
+export type MatchCardProps =
+  | {
+      variant: 'upcoming';
+      match: MatchWithOpponent;
+      onCancel: () => void;
+      onMarkComplete: () => void;
+    }
+  | {
+      variant: 'past';
+      match: MatchWithOpponent;
+      onReview?: () => void;
+      onRematch?: () => void;
+    }
+  | {
+      variant: 'pending-incoming';
+      request: PendingRequest;
+      onBook: () => void;
+      onDecline: () => void;
+    }
+  | {
+      variant: 'pending-outgoing';
+      request: PendingRequest;
+      onCancelRequest: () => void;
+    };
 
 type BadgeProps = { label: string; color: string };
 
@@ -89,8 +78,6 @@ const ActionButton = ({
     </Text>
   </PressableScale>
 );
-
-// --- Main component ---
 
 export const MatchCard = (props: MatchCardProps): ReactElement => {
   if (props.variant === 'upcoming') {
@@ -203,7 +190,6 @@ export const MatchCard = (props: MatchCardProps): ReactElement => {
     );
   }
 
-  // pending-outgoing
   const { request, onCancelRequest } = props;
   return (
     <View style={[styles.card, styles.cardMuted]}>
@@ -241,12 +227,8 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 2,
   },
-  cardMuted: {
-    opacity: 0.75,
-  },
-  accentBar: {
-    width: 3,
-  },
+  cardMuted: { opacity: 0.75 },
+  accentBar: { width: 3 },
   body: {
     flex: 1,
     padding: spacing.lg,
@@ -300,9 +282,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.md,
     backgroundColor: colors.accent.primary,
   },
-  actionBtnSecondary: {
-    backgroundColor: colors.background.secondary,
-  },
+  actionBtnSecondary: { backgroundColor: colors.background.secondary },
   actionBtnDestructive: {
     backgroundColor: 'transparent',
     borderWidth: 1,
@@ -313,10 +293,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.text.inverse,
   },
-  actionBtnTextSecondary: {
-    color: colors.text.primary,
-  },
-  actionBtnTextDestructive: {
-    color: colors.status.error,
-  },
+  actionBtnTextSecondary: { color: colors.text.primary },
+  actionBtnTextDestructive: { color: colors.status.error },
 });

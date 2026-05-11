@@ -1,3 +1,4 @@
+import { FlashList } from '@shopify/flash-list';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import type { ReactElement } from 'react';
@@ -5,8 +6,7 @@ import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  FlatList,
-  Pressable,
+  RefreshControl,
   StyleSheet,
   Text,
   View,
@@ -14,6 +14,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { MatchCard } from '@/components/feature/match-card';
+import type { Tab } from '@/components/feature/matches-tab-bar';
+import { MatchesTabBar } from '@/components/feature/matches-tab-bar';
 import { ReviewSheet } from '@/components/feature/review-sheet';
 import type { MatchWithOpponent, PendingRequest } from '@/hooks/use-matches';
 import {
@@ -30,12 +32,10 @@ import { requestReviewIfAvailable } from '@/lib/store-review';
 import { colors } from '@/theme/colors';
 import { spacing } from '@/theme/spacing';
 
-type Tab = 'upcoming' | 'pending' | 'past';
-
-const TAB_LABELS: Record<Tab, string> = {
-  upcoming: 'Upcoming',
-  pending: 'Pending',
-  past: 'Past',
+const EMPTY_MESSAGES: Record<Tab, string> = {
+  upcoming: 'No upcoming matches.\nHead to Hub to find someone to play.',
+  pending: 'No pending requests.',
+  past: 'No past matches yet.',
 };
 
 export default function MatchesScreen(): ReactElement {
@@ -46,11 +46,15 @@ export default function MatchesScreen(): ReactElement {
     null,
   );
 
-  const { data, isLoading } = useMatches();
+  const { data, isLoading, isFetching } = useMatches();
 
   const invalidate = useCallback((): void => {
     void queryClient.invalidateQueries({ queryKey: ['matches'] });
   }, [queryClient]);
+
+  const handleRefresh = useCallback((): void => {
+    invalidate();
+  }, [invalidate]);
 
   const handleCancelMatch = useCallback(
     (match: MatchWithOpponent): void => {
@@ -76,7 +80,7 @@ export default function MatchesScreen(): ReactElement {
   const handleMarkComplete = useCallback(
     (matchId: string): void => {
       haptics.success();
-      void markMatchComplete(matchId).then(async () => {
+      void markMatchComplete(matchId).then(async (): Promise<void> => {
         invalidate();
         await requestReviewIfAvailable();
       });
@@ -149,6 +153,12 @@ export default function MatchesScreen(): ReactElement {
     [invalidate],
   );
 
+  const { upcoming, pending, past } = data ?? {
+    upcoming: [],
+    pending: [],
+    past: [],
+  };
+
   const renderUpcoming = useCallback(
     ({ item }: { item: MatchWithOpponent }): ReactElement => (
       <MatchCard
@@ -200,44 +210,18 @@ export default function MatchesScreen(): ReactElement {
     [handleBook, handleDecline, handleCancelRequest],
   );
 
-  const listData = (): {
-    upcoming: MatchWithOpponent[];
-    pending: PendingRequest[];
-    past: MatchWithOpponent[];
-  } => data ?? { upcoming: [], pending: [], past: [] };
-
-  const emptyMessages: Record<Tab, string> = {
-    upcoming: 'No upcoming matches.\nHead to Hub to find someone to play.',
-    pending: 'No pending requests.',
-    past: 'No past matches yet.',
-  };
+  const refreshControl = (
+    <RefreshControl
+      refreshing={isFetching && !isLoading}
+      onRefresh={handleRefresh}
+      tintColor={colors.accent.primary}
+    />
+  );
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <Text style={styles.screenTitle}>Matches</Text>
-
-      {/* Segmented control */}
-      <View style={styles.tabRow}>
-        {(Object.keys(TAB_LABELS) as Tab[]).map((tab) => (
-          <Pressable
-            key={tab}
-            onPress={(): void => setActiveTab(tab)}
-            style={styles.tabBtn}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: activeTab === tab }}
-          >
-            <Text
-              style={[
-                styles.tabLabel,
-                activeTab === tab && styles.tabLabelActive,
-              ]}
-            >
-              {TAB_LABELS[tab]}
-            </Text>
-            {activeTab === tab && <View style={styles.tabUnderline} />}
-          </Pressable>
-        ))}
-      </View>
+      <MatchesTabBar activeTab={activeTab} onTabChange={setActiveTab} />
 
       {isLoading ? (
         <View style={styles.centered}>
@@ -246,38 +230,44 @@ export default function MatchesScreen(): ReactElement {
       ) : (
         <>
           {activeTab === 'upcoming' && (
-            <FlatList
-              data={listData().upcoming}
+            <FlashList
+              data={upcoming}
               keyExtractor={(item): string => item.id}
               renderItem={renderUpcoming}
               contentContainerStyle={styles.listContent}
               showsVerticalScrollIndicator={false}
+              estimatedItemSize={120}
+              refreshControl={refreshControl}
               ListEmptyComponent={
-                <Text style={styles.emptyText}>{emptyMessages.upcoming}</Text>
+                <Text style={styles.emptyText}>{EMPTY_MESSAGES.upcoming}</Text>
               }
             />
           )}
           {activeTab === 'pending' && (
-            <FlatList
-              data={listData().pending}
+            <FlashList
+              data={pending}
               keyExtractor={(item): string => item.id}
               renderItem={renderPending}
               contentContainerStyle={styles.listContent}
               showsVerticalScrollIndicator={false}
+              estimatedItemSize={120}
+              refreshControl={refreshControl}
               ListEmptyComponent={
-                <Text style={styles.emptyText}>{emptyMessages.pending}</Text>
+                <Text style={styles.emptyText}>{EMPTY_MESSAGES.pending}</Text>
               }
             />
           )}
           {activeTab === 'past' && (
-            <FlatList
-              data={listData().past}
+            <FlashList
+              data={past}
               keyExtractor={(item): string => item.id}
               renderItem={renderPast}
               contentContainerStyle={styles.listContent}
               showsVerticalScrollIndicator={false}
+              estimatedItemSize={120}
+              refreshControl={refreshControl}
               ListEmptyComponent={
-                <Text style={styles.emptyText}>{emptyMessages.past}</Text>
+                <Text style={styles.emptyText}>{EMPTY_MESSAGES.past}</Text>
               }
             />
           )}
@@ -295,10 +285,7 @@ export default function MatchesScreen(): ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background.primary,
-  },
+  container: { flex: 1, backgroundColor: colors.background.primary },
   screenTitle: {
     fontSize: 28,
     fontWeight: '700',
@@ -308,47 +295,13 @@ const styles = StyleSheet.create({
     paddingTop: spacing.lg,
     paddingBottom: spacing.md,
   },
-  tabRow: {
-    flexDirection: 'row',
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.primary,
-    marginHorizontal: spacing.lg,
-    marginBottom: spacing.lg,
-  },
-  tabBtn: {
-    marginRight: spacing.xxl,
-    paddingBottom: spacing.sm,
-    position: 'relative',
-  },
-  tabLabel: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: colors.text.tertiary,
-  },
-  tabLabelActive: {
-    color: colors.text.primary,
-    fontWeight: '600',
-  },
-  tabUnderline: {
-    position: 'absolute',
-    bottom: -1,
-    left: 0,
-    right: 0,
-    height: 2,
-    borderRadius: 1,
-    backgroundColor: colors.accent.primary,
-  },
   listContent: {
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.hero,
     gap: spacing.md,
     flexGrow: 1,
   },
-  centered: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   emptyText: {
     textAlign: 'center',
     fontSize: 15,

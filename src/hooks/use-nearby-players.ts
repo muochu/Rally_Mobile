@@ -1,9 +1,26 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { z } from 'zod';
 import type { BusyInterval } from '@/lib/calendar/types';
 import type { FreeSlot, PreferredHours } from '@/lib/overlap';
 import { findMutualFreeSlots, sliceToMatchSlots } from '@/lib/overlap';
 import { supabase } from '@/lib/supabase';
+
+const BusyIntervalSchema = z.object({
+  start_time: z.string(),
+  end_time: z.string(),
+});
+
+const NearbyPlayerRowSchema = z.object({
+  id: z.string(),
+  full_name: z.string(),
+  avatar_url: z.string().nullable(),
+  utr_rating: z.number().nullable(),
+  city: z.string().nullable(),
+  home_court_name: z.string().nullable(),
+  distance_km: z.number().nullable(),
+  busy_intervals: z.array(BusyIntervalSchema).nullable().default([]),
+});
 
 const LOOKAHEAD_DAYS = 14;
 const MIN_MATCH_MINUTES = 90;
@@ -30,13 +47,14 @@ export const useNearbyPlayers = (
 } => {
   const { data: raw, isLoading } = useQuery({
     queryKey: ['nearby-players', userId],
+    staleTime: 5 * 60_000,
     queryFn: async () => {
       const { data, error } = await supabase.rpc('get_nearby_players', {
         radius_km: 50,
         lookahead_days: LOOKAHEAD_DAYS,
       });
       if (error) throw error;
-      return data ?? [];
+      return z.array(NearbyPlayerRowSchema).parse(data ?? []);
     },
     enabled: Boolean(userId),
   });
@@ -46,12 +64,10 @@ export const useNearbyPlayers = (
 
     return raw
       .map((p) => {
-        const theirBusy: BusyInterval[] = (p.busy_intervals ?? []).map(
-          (b: { start_time: string; end_time: string }) => ({
-            start: new Date(b.start_time),
-            end: new Date(b.end_time),
-          }),
-        );
+        const theirBusy: BusyInterval[] = (p.busy_intervals ?? []).map((b) => ({
+          start: new Date(b.start_time),
+          end: new Date(b.end_time),
+        }));
 
         const windows = findMutualFreeSlots(myBusy, theirBusy, {
           lookaheadDays: LOOKAHEAD_DAYS,

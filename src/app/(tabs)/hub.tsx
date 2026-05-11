@@ -5,7 +5,6 @@ import type { ReactElement } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Linking,
-  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -14,14 +13,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { FreeWindowCard } from '@/components/feature/free-window-card';
+import { CalendarConnectPrompt } from '@/components/feature/calendar-connect-prompt';
+import { FreeWindowsSection } from '@/components/feature/free-windows-section';
 import type { NearbyPlayer } from '@/components/feature/player-card';
-import { PlayerCard } from '@/components/feature/player-card';
 import { PlayerProfileSheet } from '@/components/feature/player-profile-sheet';
-import {
-  SkeletonFreeWindowCard,
-  SkeletonPlayerCard,
-} from '@/components/ui/skeleton';
+import type { SkillFilter } from '@/components/feature/players-nearby-section';
+import { PlayersNearbySection } from '@/components/feature/players-nearby-section';
 import { useAuth } from '@/hooks/use-auth';
 import { syncAvailability } from '@/hooks/use-availability-sync';
 import { useFreeWindows } from '@/hooks/use-free-windows';
@@ -31,9 +28,7 @@ import { trackEvent } from '@/lib/analytics';
 import type { BusyInterval, FreeSlot } from '@/lib/calendar/types';
 import { haptics } from '@/lib/haptics';
 import { colors } from '@/theme/colors';
-import { radii, spacing } from '@/theme/spacing';
-
-type SkillFilter = 'all' | 'similar';
+import { spacing } from '@/theme/spacing';
 
 export default function HubScreen(): ReactElement {
   const { session } = useAuth();
@@ -163,124 +158,23 @@ export default function HubScreen(): ReactElement {
         }
       >
         {showCalendarEmpty ? (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyIcon}>📅</Text>
-            <Text style={styles.emptyTitle}>Connect your calendar</Text>
-            <Text style={styles.emptyBody}>
-              Rally reads only your free/busy times to find players who share
-              your schedule.
-            </Text>
-            {calendarDenied && (
-              <Text style={styles.emptyError}>
-                Permission denied. Enable calendar access in Settings → Privacy
-                → Calendars.
-              </Text>
-            )}
-            <Pressable
-              style={styles.emptyButton}
-              onPress={handleConnectCalendar}
-              accessibilityRole="button"
-              accessibilityLabel="Connect Apple Calendar"
-            >
-              <Text style={styles.emptyButtonText}>Get started</Text>
-            </Pressable>
-          </View>
+          <CalendarConnectPrompt
+            calendarDenied={calendarDenied}
+            onConnect={handleConnectCalendar}
+          />
         ) : (
           <>
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Your free windows</Text>
-              {windowsLoading ? (
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.cardScroll}
-                >
-                  {[0, 1, 2].map((i) => (
-                    <SkeletonFreeWindowCard key={i} />
-                  ))}
-                </ScrollView>
-              ) : daySummaries.length === 0 ? (
-                <Text style={styles.emptySection}>
-                  No free time found. Add events to your calendar to see gaps.
-                </Text>
-              ) : (
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.cardScroll}
-                >
-                  {daySummaries.map((s, i) => (
-                    <FreeWindowCard
-                      key={s.dateKey}
-                      summary={s}
-                      staggerIndex={i}
-                    />
-                  ))}
-                </ScrollView>
-              )}
-            </View>
-
-            <View style={styles.filterRow}>
-              {(['all', 'similar'] as SkillFilter[]).map((f) => (
-                <Pressable
-                  key={f}
-                  style={[styles.chip, skillFilter === f && styles.chipActive]}
-                  onPress={() => {
-                    haptics.light();
-                    setSkillFilter(f);
-                  }}
-                  accessibilityRole="button"
-                  accessibilityLabel={
-                    f === 'all' ? 'All skill levels' : 'Similar UTR'
-                  }
-                  accessibilityState={{ selected: skillFilter === f }}
-                >
-                  <Text
-                    style={[
-                      styles.chipText,
-                      skillFilter === f && styles.chipTextActive,
-                    ]}
-                  >
-                    {f === 'all' ? 'All levels' : 'Similar UTR'}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Players nearby</Text>
-              {playersLoading ? (
-                <View style={styles.playerList}>
-                  {[0, 1, 2].map((i) => (
-                    <View key={i}>
-                      {i > 0 && <View style={styles.divider} />}
-                      <SkeletonPlayerCard />
-                    </View>
-                  ))}
-                </View>
-              ) : filteredPlayers.length === 0 ? (
-                <View style={styles.noPlayersState}>
-                  <Text style={styles.emptyTitle}>No players nearby yet</Text>
-                  <Text style={styles.emptyBody}>
-                    Try expanding your search radius or invite a friend to
-                    Rally.
-                  </Text>
-                </View>
-              ) : (
-                <View style={styles.playerList}>
-                  {filteredPlayers.map((player, i) => (
-                    <View key={player.id}>
-                      {i > 0 && <View style={styles.divider} />}
-                      <PlayerCard
-                        player={player}
-                        onPress={handlePlayerPress}
-                        staggerIndex={i}
-                      />
-                    </View>
-                  ))}
-                </View>
-              )}
-            </View>
+            <FreeWindowsSection
+              daySummaries={daySummaries}
+              isLoading={windowsLoading}
+            />
+            <PlayersNearbySection
+              filteredPlayers={filteredPlayers}
+              playersLoading={playersLoading}
+              skillFilter={skillFilter}
+              onFilterChange={setSkillFilter}
+              onPlayerPress={handlePlayerPress}
+            />
           </>
         )}
       </ScrollView>
@@ -317,101 +211,5 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: spacing.xxxl,
-  },
-  section: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xl,
-  },
-  sectionTitle: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: colors.text.primary,
-    marginBottom: spacing.md,
-  },
-  cardScroll: {
-    paddingRight: spacing.lg,
-  },
-  filterRow: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xl,
-  },
-  chip: {
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    borderRadius: radii.full,
-    borderWidth: 1,
-    borderColor: colors.border.secondary,
-    backgroundColor: colors.background.secondary,
-  },
-  chipActive: {
-    backgroundColor: colors.accent.primary,
-    borderColor: colors.accent.primary,
-  },
-  chipText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: colors.text.secondary,
-  },
-  chipTextActive: {
-    color: colors.text.inverse,
-    fontWeight: '600',
-  },
-  playerList: {},
-  divider: {
-    height: 1,
-    backgroundColor: colors.border.primary,
-  },
-  loader: {
-    marginVertical: spacing.xl,
-  },
-  emptyState: {
-    alignItems: 'center',
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.xxxl,
-    gap: spacing.md,
-  },
-  noPlayersState: {
-    paddingVertical: spacing.xxl,
-    gap: spacing.sm,
-  },
-  emptyIcon: {
-    fontSize: 32,
-    marginBottom: spacing.sm,
-  },
-  emptyTitle: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: colors.text.primary,
-    textAlign: 'center',
-  },
-  emptyBody: {
-    fontSize: 14,
-    color: colors.text.tertiary,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  emptyError: {
-    fontSize: 13,
-    color: colors.status.error,
-    textAlign: 'center',
-  },
-  emptyButton: {
-    marginTop: spacing.sm,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.xxl,
-    borderRadius: radii.md,
-    backgroundColor: colors.accent.primary,
-  },
-  emptyButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: colors.text.inverse,
-  },
-  emptySection: {
-    fontSize: 14,
-    color: colors.text.tertiary,
-    lineHeight: 20,
   },
 });

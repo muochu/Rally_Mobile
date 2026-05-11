@@ -1,6 +1,7 @@
-import type { ReactElement } from 'react';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Image, StyleSheet, Text } from 'react-native';
+import type { ReactElement } from 'react';
+import { StyleSheet, Text } from 'react-native';
 
 // Muted, premium gradient pairs — never bright or neon
 const GRADIENTS: [string, string][] = [
@@ -49,11 +50,13 @@ export function Avatar({
   if (imageUrl) {
     return (
       <Image
-        source={{ uri: imageUrl }}
+        source={imageUrl}
         style={[
           styles.img,
           { width: size, height: size, borderRadius: radius },
         ]}
+        contentFit="cover"
+        transition={150}
       />
     );
   }
@@ -92,7 +95,5 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     letterSpacing: 0.5,
   },
-  img: {
-    resizeMode: 'cover',
-  },
+  img: {},
 });

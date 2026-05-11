@@ -1,6 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
-
+import { useQuery } from '@tanstack/react-query';
 import type { BusyInterval } from '@/lib/calendar/types';
 import type { PreferredHours } from '@/lib/overlap';
 import { findMutualFreeSlots } from '@/lib/overlap';
@@ -72,6 +71,7 @@ export const useFreeWindows = (
 } => {
   const { data: blocks, isLoading } = useQuery({
     queryKey: ['availability-blocks', userId],
+    staleTime: 5 * 60_000,
     queryFn: async () => {
       if (!userId) return [];
       const windowStart = new Date();

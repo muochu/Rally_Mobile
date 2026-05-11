@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { z } from 'zod';
 import { supabase } from '@/lib/supabase';
 
 export type PreferredHours = {
@@ -17,6 +18,23 @@ export type Profile = {
   preferred_hours: PreferredHours | null;
   home_court_id: string | null;
 };
+
+const ProfileSchema = z.object({
+  id: z.string(),
+  full_name: z.string(),
+  avatar_url: z.string().nullable(),
+  city: z.string().nullable(),
+  utr_rating: z.number().nullable(),
+  preferred_sport: z.string(),
+  preferred_hours: z
+    .object({
+      weekday_morning: z.boolean(),
+      weekday_evening: z.boolean(),
+      weekend: z.boolean(),
+    })
+    .nullable(),
+  home_court_id: z.string().nullable(),
+});
 
 type ProfileUpdate = {
   full_name?: string;
@@ -41,7 +59,7 @@ export const useProfile = (
         .eq('id', userId)
         .single();
       if (error) throw new Error(error.message);
-      return row as Profile;
+      return ProfileSchema.parse(row) as Profile;
     },
     enabled: Boolean(userId),
   });

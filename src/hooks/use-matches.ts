@@ -3,8 +3,15 @@ import * as Sentry from '@sentry/react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as Calendar from 'expo-calendar';
 import { Alert } from 'react-native';
+import { z } from 'zod';
 import { trackEvent } from '@/lib/analytics';
 import { supabase } from '@/lib/supabase';
+
+const ProfileRowSchema = z.object({
+  id: z.string(),
+  full_name: z.string(),
+  avatar_url: z.string().nullable(),
+});
 
 export type MatchWithOpponent = {
   id: string;
@@ -87,7 +94,10 @@ const fetchMatchesData = async (): Promise<MatchesResult> => {
           }[],
         };
 
-  const profileMap = new Map((profilesResult.data ?? []).map((p) => [p.id, p]));
+  const profileRows = z
+    .array(ProfileRowSchema)
+    .parse(profilesResult.data ?? []);
+  const profileMap = new Map(profileRows.map((p) => [p.id, p]));
 
   const nowDate = new Date();
 

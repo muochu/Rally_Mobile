@@ -40,6 +40,7 @@ function RootLayout(): ReactElement {
         void registerForPushNotifications(session.user.id);
       }
       if (event === 'SIGNED_OUT') {
+        queryClient.clear();
         resetAnalytics();
       }
     });

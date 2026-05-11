@@ -13,8 +13,17 @@ export default defineConfig({
     setupFiles: ['dotenv/config'],
     server: {
       deps: {
-        // Prevent native packages from being loaded in Node test env
         inline: ['posthog-react-native'],
+        external: [
+          /react-native/,
+          /@sentry\/react-native/,
+          /expo-calendar/,
+          /expo-secure-store/,
+          /expo-haptics/,
+          /expo-notifications/,
+          /expo-location/,
+          /@rnmapbox\/maps/,
+        ],
       },
     },
   },

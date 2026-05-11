@@ -3,7 +3,6 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeft, MapPin } from 'lucide-react-native';
 import type { ReactElement } from 'react';
 import {
-  ActivityIndicator,
   Linking,
   Pressable,
   ScrollView,
@@ -13,66 +12,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { supabase } from '@/lib/supabase';
+import { Skeleton } from '@/components/ui/skeleton';
+import type { MatchDetail } from '@/lib/match-detail';
+import { fetchMatchDetail } from '@/lib/match-detail';
 import { colors } from '@/theme/colors';
 import { radii, spacing } from '@/theme/spacing';
-
-type MatchDetail = {
-  id: string;
-  startTime: Date;
-  endTime: Date;
-  status: 'upcoming' | 'completed' | 'cancelled';
-  opponentName: string;
-  opponentId: string;
-  courtName: string | null;
-  courtAddress: string | null;
-  courtLat: number | null;
-  courtLng: number | null;
-};
-
-const fetchMatch = async (id: string): Promise<MatchDetail | null> => {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  if (!session) return null;
-  const myId = session.user.id;
-
-  const { data: match } = await supabase
-    .from('matches')
-    .select('*, courts(name, address, latitude, longitude)')
-    .eq('id', id)
-    .single();
-
-  if (!match) return null;
-
-  const opponentId = match.player_a === myId ? match.player_b : match.player_a;
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('full_name')
-    .eq('id', opponentId)
-    .single();
-
-  const court =
-    (match.courts as unknown as {
-      name: string;
-      address: string | null;
-      latitude: number;
-      longitude: number;
-    } | null) ?? null;
-
-  return {
-    id: match.id,
-    startTime: new Date(match.start_time),
-    endTime: new Date(match.end_time),
-    status: match.status as MatchDetail['status'],
-    opponentName: profile?.full_name ?? 'Unknown player',
-    opponentId,
-    courtName: court?.name ?? null,
-    courtAddress: court?.address ?? null,
-    courtLat: court?.latitude ?? null,
-    courtLng: court?.longitude ?? null,
-  };
-};
 
 const STATUS_LABEL: Record<MatchDetail['status'], string> = {
   upcoming: 'Upcoming',
@@ -92,7 +36,7 @@ export default function MatchDetailsScreen(): ReactElement {
 
   const { data: match, isLoading } = useQuery({
     queryKey: ['match', id],
-    queryFn: () => fetchMatch(id ?? ''),
+    queryFn: () => fetchMatchDetail(id ?? ''),
     enabled: !!id,
   });
 
@@ -119,6 +63,8 @@ export default function MatchDetailsScreen(): ReactElement {
           onPress={() => router.back()}
           hitSlop={12}
           style={styles.backBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
         >
           <ArrowLeft size={22} color={colors.text.primary} strokeWidth={1.75} />
         </Pressable>
@@ -127,8 +73,11 @@ export default function MatchDetailsScreen(): ReactElement {
       </View>
 
       {isLoading ? (
-        <View style={styles.centered}>
-          <ActivityIndicator color={colors.accent.primary} />
+        <View style={styles.skeletonContent}>
+          <Skeleton width={90} height={26} borderRadius={radii.full} />
+          <Skeleton height={80} style={{ marginTop: spacing.md }} />
+          <Skeleton height={96} style={{ marginTop: spacing.md }} />
+          <Skeleton height={80} style={{ marginTop: spacing.md }} />
         </View>
       ) : !match ? (
         <View style={styles.centered}>
@@ -139,7 +88,6 @@ export default function MatchDetailsScreen(): ReactElement {
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
         >
-          {/* Status badge */}
           <View
             style={[
               styles.statusBadge,
@@ -159,13 +107,11 @@ export default function MatchDetailsScreen(): ReactElement {
             </Text>
           </View>
 
-          {/* Opponent */}
           <View style={styles.card}>
             <Text style={styles.label}>Opponent</Text>
             <Text style={styles.value}>{match.opponentName}</Text>
           </View>
 
-          {/* Date & time */}
           <View style={styles.card}>
             <Text style={styles.label}>When</Text>
             <Text style={styles.value}>
@@ -188,7 +134,6 @@ export default function MatchDetailsScreen(): ReactElement {
             </Text>
           </View>
 
-          {/* Court */}
           {match.courtName && (
             <View style={styles.card}>
               <Text style={styles.label}>Court</Text>
@@ -200,6 +145,8 @@ export default function MatchDetailsScreen(): ReactElement {
                 <Pressable
                   style={styles.directionsRow}
                   onPress={handleDirections}
+                  accessibilityRole="button"
+                  accessibilityLabel="Get directions to court"
                 >
                   <MapPin
                     size={14}
@@ -212,9 +159,13 @@ export default function MatchDetailsScreen(): ReactElement {
             </View>
           )}
 
-          {/* Actions */}
           {match.status === 'completed' && (
-            <Pressable style={styles.primaryBtn} onPress={handleRematch}>
+            <Pressable
+              style={styles.primaryBtn}
+              onPress={handleRematch}
+              accessibilityRole="button"
+              accessibilityLabel="Schedule a rematch"
+            >
               <Text style={styles.primaryBtnText}>Rematch</Text>
             </Pressable>
           )}
@@ -246,6 +197,10 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '600',
     color: colors.text.primary,
+  },
+  skeletonContent: {
+    padding: spacing.lg,
+    gap: spacing.md,
   },
   centered: {
     flex: 1,

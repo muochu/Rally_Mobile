@@ -39,7 +39,7 @@ serve(async (req: Request): Promise<Response> => {
         profile.push_token,
         'Match confirmed!',
         `${profile.full_name} booked a tennis match with you.`,
-        { screen: '/(tabs)/matches', matchId },
+        { screen: `/match/${matchId}` },
       );
     }
 
