@@ -91,7 +91,7 @@ export function ProfileSettingsSection({
           <Pressable
             style={styles.row}
             onPress={(): void => {
-              void Linking.openURL('https://rallysport.app/privacy');
+              void Linking.openURL('https://rallyapp.ca/privacy.html');
             }}
             accessibilityRole="link"
             accessibilityLabel="Privacy Policy"
@@ -107,7 +107,7 @@ export function ProfileSettingsSection({
           <Pressable
             style={styles.row}
             onPress={(): void => {
-              void Linking.openURL('https://rallysport.app/terms');
+              void Linking.openURL('https://rallyapp.ca/terms.html');
             }}
             accessibilityRole="link"
             accessibilityLabel="Terms of Service"

@@ -127,11 +127,11 @@ export default function SignInScreen(): ReactElement {
   }, [router]);
 
   const openPrivacyPolicy = useCallback((): void => {
-    WebBrowser.openBrowserAsync('https://rallysport.app/privacy');
+    WebBrowser.openBrowserAsync('https://rallyapp.ca/privacy.html');
   }, []);
 
   const openTerms = useCallback((): void => {
-    WebBrowser.openBrowserAsync('https://rallysport.app/terms');
+    WebBrowser.openBrowserAsync('https://rallyapp.ca/terms.html');
   }, []);
 
   return (
