@@ -38,6 +38,15 @@ const DEFAULT_COORDS: [number, number] = [-123.1207, 49.2827];
 const DEFAULT_ZOOM = 13;
 const GEOCODE_URL = 'https://api.mapbox.com/geocoding/v5/mapbox.places';
 
+const GeocodeFeatureSchema = z.object({
+  id: z.string(),
+  place_name: z.string(),
+  center: z.tuple([z.number(), z.number()]),
+});
+const GeocodeResponseSchema = z.object({
+  features: z.array(GeocodeFeatureSchema),
+});
+
 export default function CourtsScreen(): ReactElement {
   const { session } = useAuth();
   const userId = session?.user.id ?? '';
@@ -120,13 +129,7 @@ export default function CourtsScreen(): ReactElement {
         fetch(url)
           .then((res) => res.json())
           .then((json) => {
-            const { features } = json as {
-              features: {
-                id: string;
-                place_name: string;
-                center: [number, number];
-              }[];
-            };
+            const { features } = GeocodeResponseSchema.parse(json);
             setSuggestions(
               features.map((f) => ({
                 id: f.id,
@@ -298,8 +301,8 @@ const styles = StyleSheet.create({
     height: 36,
     backgroundColor: colors.background.elevated,
     borderRadius: radii.full,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.08,
@@ -316,8 +319,8 @@ const styles = StyleSheet.create({
     borderRadius: radii.full,
     borderWidth: 1,
     borderColor: colors.border.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,

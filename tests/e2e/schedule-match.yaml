@@ -4,35 +4,34 @@ name: Schedule a match end-to-end
 - launchApp
 
 # Should already be signed in — land on Hub
-- assertVisible: "Schedule a match"
-
-# Tap a nearby player
 - assertVisible: "Players nearby"
+
+# Tap the first player card
 - tapOn:
     index: 0
-    text: "Schedule a match"
+    id: "player-card"
 
-# Player profile sheet
-- assertVisible: "Schedule a match"
-- tapOn: "Schedule a match"
-
-# Mutual availability picker
-- assertVisible: "Pick a time"
+# Slot picker — title is the opponent's name, slots are listed below
+- assertVisible: "This week"
 - tapOn:
     index: 0
-    text: "Select"
+    id: "slot-row"
+
+# Continue to confirm screen
+- tapOn: "Continue"
 
 # Confirm screen
-- assertVisible: "Confirm & book"
-- assertVisible: "Book and add to calendar"
-- tapOn: "Book and add to calendar"
+- assertVisible: "Confirm match"
+- assertVisible: "Send match request"
+- tapOn: "Send match request"
 
-# Calendar write permission prompt (iOS system alert)
-- tapOn: "OK"
+# Calendar write permission prompt (iOS system alert — may or may not appear)
+- optional:
+    - tapOn: "OK"
 
-# Booked confirmation
-- assertVisible: "Booked!"
-- tapOn: "Done"
+# Success screen
+- assertVisible: "Request sent!"
+- tapOn: "Back to Hub"
 
 # Back on Hub
-- assertVisible: "Schedule a match"
+- assertVisible: "Players nearby"

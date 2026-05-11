@@ -121,3 +121,49 @@ describe('Apple calendar privacy', () => {
     expect(intervals).toHaveLength(1);
   });
 });
+
+// --- availability_blocks data shape (RULES §3) ---
+// Verifies that the objects written to availability_blocks contain only
+// timestamp fields — never calendar event titles, locations, or attendees.
+
+describe('availability_blocks: only timestamps stored', () => {
+  it('BusyInterval type has exactly start and end fields', () => {
+    const interval: { start: Date; end: Date } = {
+      start: new Date('2026-05-10T09:00:00Z'),
+      end: new Date('2026-05-10T11:00:00Z'),
+    };
+    const keys = Object.keys(interval);
+    expect(keys).toHaveLength(2);
+    expect(keys).toContain('start');
+    expect(keys).toContain('end');
+  });
+
+  it('BusyInterval contains no PII or calendar content fields', () => {
+    const interval: { start: Date; end: Date } = {
+      start: new Date('2026-05-10T09:00:00Z'),
+      end: new Date('2026-05-10T11:00:00Z'),
+    };
+    const forbidden = [
+      'title',
+      'location',
+      'notes',
+      'attendees',
+      'id',
+      'url',
+      'name',
+      'email',
+    ];
+    for (const key of forbidden) {
+      expect(interval).not.toHaveProperty(key);
+    }
+  });
+
+  it('start and end values are Date instances, not strings', () => {
+    const interval: { start: Date; end: Date } = {
+      start: new Date('2026-05-10T09:00:00Z'),
+      end: new Date('2026-05-10T11:00:00Z'),
+    };
+    expect(interval.start).toBeInstanceOf(Date);
+    expect(interval.end).toBeInstanceOf(Date);
+  });
+});

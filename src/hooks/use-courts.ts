@@ -1,5 +1,21 @@
 import { useQuery } from '@tanstack/react-query';
+import { z } from 'zod';
+
 import { supabase } from '@/lib/supabase';
+
+const CourtSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  address: z.string().nullable(),
+  latitude: z.number(),
+  longitude: z.number(),
+  city: z.string().nullable(),
+  court_count: z.number(),
+  fee_per_hour_cents: z.number().nullable(),
+  surface: z.string().nullable(),
+  indoor: z.boolean(),
+  upcoming_matches_count: z.number(),
+});
 
 export type Court = {
   id: string;
@@ -62,9 +78,10 @@ export const useCourts = (
         },
       );
       if (rpcError) throw new Error(rpcError.message);
+      const courts = z.array(CourtSchema).parse(rows ?? []);
       // Deduplicate by proximity — same court seeded from multiple OSM ways
       const seen: Court[] = [];
-      for (const court of (rows ?? []) as Court[]) {
+      for (const court of courts) {
         const nearby = seen.findIndex(
           (c) =>
             haversineKm(
