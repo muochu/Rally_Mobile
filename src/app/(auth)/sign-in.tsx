@@ -8,8 +8,10 @@ import { useCallback, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { trackEvent } from '@/lib/analytics';
 import { routeAfterAuth } from '@/lib/auth';
 import { reportError, UserFacingError } from '@/lib/errors';
+import { haptics } from '@/lib/haptics';
 import { supabase } from '@/lib/supabase';
 import { colors } from '@/theme/colors';
 import { spacing } from '@/theme/spacing';
@@ -49,7 +51,12 @@ export default function SignInScreen(): ReactElement {
 
       if (authError)
         throw new UserFacingError('Apple sign-in failed. Please try again.');
-      if (data.session) await routeAfterAuth(data.session.user.id, router);
+      if (data.session) {
+        haptics.success();
+        if (data.user?.created_at === data.user?.last_sign_in_at)
+          trackEvent('signed_up');
+        await routeAfterAuth(data.session.user.id, router);
+      }
     } catch (err) {
       if (err instanceof Error && err.message.includes('1001')) return;
       if (err instanceof UserFacingError) {
@@ -94,8 +101,14 @@ export default function SignInScreen(): ReactElement {
           access_token: accessToken,
           refresh_token: refreshToken ?? '',
         });
-        if (sessionData.session)
+        if (sessionData.session) {
+          haptics.success();
+          if (
+            sessionData.user?.created_at === sessionData.user?.last_sign_in_at
+          )
+            trackEvent('signed_up');
           await routeAfterAuth(sessionData.session.user.id, router);
+        }
       }
     } catch (err) {
       if (err instanceof UserFacingError) {

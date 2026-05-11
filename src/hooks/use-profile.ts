@@ -1,5 +1,4 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-
 import { supabase } from '@/lib/supabase';
 
 export type PreferredHours = {
@@ -24,6 +23,7 @@ type ProfileUpdate = {
   city?: string;
   utr_rating?: number | null;
   preferred_hours?: PreferredHours;
+  avatar_url?: string;
 };
 
 export const useProfile = (

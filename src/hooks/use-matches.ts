@@ -1,9 +1,8 @@
+import { useEffect } from 'react';
 import * as Sentry from '@sentry/react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as Calendar from 'expo-calendar';
-import { useEffect } from 'react';
 import { Alert } from 'react-native';
-
 import { trackEvent } from '@/lib/analytics';
 import { supabase } from '@/lib/supabase';
 
@@ -29,6 +28,8 @@ export type PendingRequest = {
   createdAt: Date;
   expiresAt: Date;
   message: string | null;
+  proposedStart: Date | null;
+  proposedEnd: Date | null;
 };
 
 type MatchesResult = {
@@ -138,6 +139,8 @@ const fetchMatchesData = async (): Promise<MatchesResult> => {
       createdAt: new Date(r.created_at),
       expiresAt: new Date(r.expires_at),
       message: r.message,
+      proposedStart: r.proposed_start ? new Date(r.proposed_start) : null,
+      proposedEnd: r.proposed_end ? new Date(r.proposed_end) : null,
     };
   });
 

@@ -1,28 +1,58 @@
 import type { ReactElement } from 'react';
+import { useEffect } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 import type { DaySummary } from '@/hooks/use-free-windows';
 import { colors } from '@/theme/colors';
 import { radii, spacing } from '@/theme/spacing';
 
 interface FreeWindowCardProps {
   summary: DaySummary;
+  staggerIndex?: number;
 }
 
-export function FreeWindowCard({ summary }: FreeWindowCardProps): ReactElement {
+export function FreeWindowCard({
+  summary,
+  staggerIndex = 0,
+}: FreeWindowCardProps): ReactElement {
   const { dayLabel, dateLabel, timeLabel } = summary;
   const isAllDay = timeLabel === 'All day';
 
+  const opacity = useSharedValue(0);
+  const translateX = useSharedValue(20);
+
+  useEffect(() => {
+    const delay = staggerIndex * 50;
+    opacity.value = withDelay(delay, withTiming(1, { duration: 250 }));
+    translateX.value = withDelay(
+      delay,
+      withSpring(0, { damping: 18, stiffness: 300 }),
+    );
+  }, [staggerIndex, opacity, translateX]);
+
+  const enterStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: [{ translateX: translateX.value }],
+  }));
+
   return (
-    <View style={styles.card}>
-      <Text style={styles.day}>{dayLabel}</Text>
-      <Text style={styles.date}>{dateLabel}</Text>
-      <View style={[styles.badge, isAllDay && styles.badgeAllDay]}>
-        <Text style={[styles.badgeText, isAllDay && styles.badgeTextAllDay]}>
-          {timeLabel}
-        </Text>
+    <Animated.View style={enterStyle}>
+      <View style={styles.card}>
+        <Text style={styles.day}>{dayLabel}</Text>
+        <Text style={styles.date}>{dateLabel}</Text>
+        <View style={[styles.badge, isAllDay && styles.badgeAllDay]}>
+          <Text style={[styles.badgeText, isAllDay && styles.badgeTextAllDay]}>
+            {timeLabel}
+          </Text>
+        </View>
       </View>
-    </View>
+    </Animated.View>
   );
 }
 

@@ -21,6 +21,7 @@ import {
   formatSlotDate,
   formatTimeRange,
 } from '@/lib/format-slot';
+import { haptics } from '@/lib/haptics';
 import type { FreeSlot } from '@/lib/overlap';
 import { findMutualFreeSlots, sliceToMatchSlots } from '@/lib/overlap';
 import { supabase } from '@/lib/supabase';
@@ -32,9 +33,10 @@ const MIN_MATCH_MINUTES = 90;
 
 export default function PickerScreen(): ReactElement {
   const router = useRouter();
-  const { opponentId, name } = useLocalSearchParams<{
+  const { opponentId, name, requestId } = useLocalSearchParams<{
     opponentId: string;
     name?: string;
+    requestId?: string;
   }>();
   const { session } = useAuth();
   const userId = session?.user.id;
@@ -115,12 +117,15 @@ export default function PickerScreen(): ReactElement {
     if (!selectedSlot) return;
     const slotId = encodeSlotId(selectedSlot.start, selectedSlot.end);
     const encodedName = encodeURIComponent(opponentName);
+    const reqParam = requestId
+      ? `&requestId=${requestId}&requesterId=${opponentId}`
+      : '';
     router.push(
-      `/match/confirm/${opponentId}/${slotId}?name=${encodedName}` as Parameters<
+      `/match/confirm/${opponentId}/${slotId}?name=${encodedName}${reqParam}` as Parameters<
         typeof router.push
       >[0],
     );
-  }, [selectedSlot, opponentId, opponentName, router]);
+  }, [selectedSlot, opponentId, opponentName, requestId, router]);
 
   const totalSlots = dayGroups.reduce((n, g) => n + g.slots.length, 0);
   const noSlotsIn7 =
@@ -150,6 +155,7 @@ export default function PickerScreen(): ReactElement {
             key={days}
             style={[styles.chip, lookahead === days && styles.chipActive]}
             onPress={() => {
+              haptics.light();
               setLookahead(days);
               setSelectedSlot(null);
             }}
@@ -225,7 +231,10 @@ export default function PickerScreen(): ReactElement {
                           styles.slotRow,
                           isSelected && styles.slotRowSelected,
                         ]}
-                        onPress={(): void => setSelectedSlot(slot)}
+                        onPress={(): void => {
+                          haptics.light();
+                          setSelectedSlot(slot);
+                        }}
                         accessibilityRole="radio"
                         accessibilityState={{ checked: isSelected }}
                         accessibilityLabel={`${dateLabel}, ${formatTimeRange(slot.start, slot.end)}`}

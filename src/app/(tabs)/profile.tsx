@@ -1,8 +1,10 @@
 import { useQueryClient } from '@tanstack/react-query';
+import * as ImagePicker from 'expo-image-picker';
+import * as Notifications from 'expo-notifications';
 import { useRouter } from 'expo-router';
-import { ChevronRight } from 'lucide-react-native';
+import { Camera, ChevronRight } from 'lucide-react-native';
 import type { ReactElement } from 'react';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
   Linking,
@@ -10,6 +12,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   View,
@@ -17,6 +20,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CalendarPermissionsPanel } from '@/components/feature/calendar-permissions-panel';
+import { Avatar } from '@/components/ui/avatar';
 import { useAuth } from '@/hooks/use-auth';
 import type { PreferredHours } from '@/hooks/use-profile';
 import { useProfile, useUpdateProfile } from '@/hooks/use-profile';
@@ -24,14 +28,6 @@ import { haptics } from '@/lib/haptics';
 import { supabase } from '@/lib/supabase';
 import { colors } from '@/theme/colors';
 import { radii, spacing } from '@/theme/spacing';
-
-const initials = (name: string): string =>
-  name
-    .split(' ')
-    .map((w) => w[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
 
 type HourKey = keyof PreferredHours;
 
@@ -55,6 +51,70 @@ export default function ProfileScreen(): ReactElement {
   const [editUtr, setEditUtr] = useState('');
   const [editCity, setEditCity] = useState('');
   const [saving, setSaving] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [notifGranted, setNotifGranted] = useState(false);
+
+  useEffect(() => {
+    void Notifications.getPermissionsAsync().then(({ status }) => {
+      setNotifGranted(status === 'granted');
+    });
+  }, []);
+
+  const handleNotifToggle = useCallback(async (): Promise<void> => {
+    if (notifGranted) {
+      await Linking.openSettings();
+    } else {
+      const { status } = await Notifications.requestPermissionsAsync();
+      setNotifGranted(status === 'granted');
+      if (status !== 'granted') {
+        await Linking.openSettings();
+      }
+    }
+  }, [notifGranted]);
+
+  const handleAvatarPress = useCallback(async (): Promise<void> => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      await Linking.openSettings();
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+    if (result.canceled || !result.assets[0]) return;
+
+    setUploadingAvatar(true);
+    try {
+      const asset = result.assets[0];
+      const ext = asset.uri.split('.').pop() ?? 'jpg';
+      const path = `${userId}/avatar.${ext}`;
+
+      const res = await fetch(asset.uri);
+      const blob = await res.blob();
+      const arrayBuffer = await new Response(blob).arrayBuffer();
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(path, arrayBuffer, {
+          contentType: asset.mimeType ?? 'image/jpeg',
+          upsert: true,
+        });
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(path);
+
+      await updateProfile({ avatar_url: urlData.publicUrl });
+    } catch {
+      Alert.alert('Upload failed', 'Could not update your photo. Try again.');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  }, [userId, updateProfile]);
 
   const openEdit = useCallback((): void => {
     setEditName(profile?.full_name ?? '');
@@ -120,14 +180,45 @@ export default function ProfileScreen(): ReactElement {
           style: 'destructive',
           onPress: (): void => {
             Alert.alert(
-              'Not yet available',
-              'Account deletion requires contacting support at support@rally.app.',
+              'Are you sure?',
+              'Final confirmation — this action is irreversible.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Delete forever',
+                  style: 'destructive',
+                  onPress: async (): Promise<void> => {
+                    const {
+                      data: { session },
+                    } = await supabase.auth.getSession();
+                    if (!session) return;
+                    const { error } = await supabase.functions.invoke(
+                      'delete-account',
+                      {
+                        headers: {
+                          Authorization: `Bearer ${session.access_token}`,
+                        },
+                      },
+                    );
+                    if (error) {
+                      Alert.alert(
+                        'Error',
+                        'Could not delete account. Please try again.',
+                      );
+                      return;
+                    }
+                    await supabase.auth.signOut();
+                    queryClient.clear();
+                    router.replace('/' as Parameters<typeof router.replace>[0]);
+                  },
+                },
+              ],
             );
           },
         },
       ],
     );
-  }, []);
+  }, [queryClient, router]);
 
   const preferred: PreferredHours = profile?.preferred_hours ?? {
     weekday_morning: false,
@@ -152,9 +243,23 @@ export default function ProfileScreen(): ReactElement {
       >
         {/* Header */}
         <View style={styles.header}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{initials(profile.full_name)}</Text>
-          </View>
+          <Pressable
+            style={styles.avatarWrap}
+            onPress={() => void handleAvatarPress()}
+            accessibilityLabel="Change profile photo"
+            accessibilityRole="button"
+          >
+            <Avatar
+              name={profile.full_name}
+              imageUrl={profile.avatar_url}
+              size={80}
+            />
+            <View style={styles.avatarBadge}>
+              {uploadingAvatar ? null : (
+                <Camera size={12} color="#fff" strokeWidth={2} />
+              )}
+            </View>
+          </Pressable>
           <Text style={styles.name}>{profile.full_name}</Text>
           {profile.utr_rating != null && (
             <View style={styles.utrBadge}>
@@ -217,6 +322,30 @@ export default function ProfileScreen(): ReactElement {
           />
         </View>
 
+        {/* Notifications */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Notifications</Text>
+          <View style={styles.rowGroup}>
+            <View style={styles.row}>
+              <Text style={styles.rowLabel}>Push notifications</Text>
+              <Switch
+                value={notifGranted}
+                onValueChange={() => void handleNotifToggle()}
+                trackColor={{
+                  false: colors.border.secondary,
+                  true: colors.accent.primary,
+                }}
+                thumbColor="#FFFFFF"
+              />
+            </View>
+          </View>
+          {!notifGranted && (
+            <Text style={styles.notifHint}>
+              Enable in Settings to receive match requests and reminders.
+            </Text>
+          )}
+        </View>
+
         {/* Account */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Account</Text>
@@ -249,7 +378,9 @@ export default function ProfileScreen(): ReactElement {
           <View style={styles.rowGroup}>
             <Pressable
               style={styles.row}
-              onPress={() => void Linking.openURL('https://rally.app/privacy')}
+              onPress={() =>
+                void Linking.openURL('https://rallysport.app/privacy')
+              }
             >
               <Text style={styles.rowLabel}>Privacy Policy</Text>
               <ChevronRight
@@ -261,7 +392,9 @@ export default function ProfileScreen(): ReactElement {
             <View style={styles.rowDivider} />
             <Pressable
               style={styles.row}
-              onPress={() => void Linking.openURL('https://rally.app/terms')}
+              onPress={() =>
+                void Linking.openURL('https://rallysport.app/terms')
+              }
             >
               <Text style={styles.rowLabel}>Terms of Service</Text>
               <ChevronRight
@@ -336,8 +469,6 @@ export default function ProfileScreen(): ReactElement {
   );
 }
 
-const AVATAR_SIZE = 80;
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -361,19 +492,22 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border.primary,
     gap: spacing.sm,
   },
-  avatar: {
-    width: AVATAR_SIZE,
-    height: AVATAR_SIZE,
-    borderRadius: AVATAR_SIZE / 2,
-    backgroundColor: colors.accent.soft,
-    alignItems: 'center',
-    justifyContent: 'center',
+  avatarWrap: {
+    position: 'relative',
     marginBottom: spacing.xs,
   },
-  avatarText: {
-    fontSize: 28,
-    fontWeight: '600',
-    color: colors.accent.primary,
+  avatarBadge: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.accent.primary,
+    borderWidth: 2,
+    borderColor: colors.background.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   name: {
     fontSize: 22,
@@ -485,6 +619,12 @@ const styles = StyleSheet.create({
   },
   rowLabelDestructive: {
     color: colors.status.error,
+  },
+  notifHint: {
+    fontSize: 13,
+    color: colors.text.tertiary,
+    marginTop: spacing.xs,
+    lineHeight: 18,
   },
   version: {
     textAlign: 'center',

@@ -46,6 +46,12 @@
       "expo-router",
       "expo-secure-store",
       "expo-apple-authentication",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Rally uses photos for your profile picture."
+        }
+      ],
       "expo-web-browser",
       [
         "expo-calendar",
@@ -65,7 +71,21 @@
           "iosDisplayInForeground": true
         }
       ],
-      "./plugins/withPrivacyManifest"
+      "./plugins/withPrivacyManifest",
+      [
+        "expo-tracking-transparency",
+        {
+          "userTrackingPermission": "Rally uses anonymous analytics to improve the app. No personal data or calendar content is shared."
+        }
+      ],
+      [
+        "@sentry/react-native/expo",
+        {
+          "url": "https://sentry.io/",
+          "project": "react-native",
+          "organization": "spacegarten"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

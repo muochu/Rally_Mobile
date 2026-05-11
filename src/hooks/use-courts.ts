@@ -1,5 +1,4 @@
 import { useQuery } from '@tanstack/react-query';
-
 import { supabase } from '@/lib/supabase';
 
 export type Court = {
@@ -63,7 +62,25 @@ export const useCourts = (
         },
       );
       if (rpcError) throw new Error(rpcError.message);
-      return (rows ?? []) as Court[];
+      // Deduplicate by proximity — same court seeded from multiple OSM ways
+      const seen: Court[] = [];
+      for (const court of (rows ?? []) as Court[]) {
+        const nearby = seen.findIndex(
+          (c) =>
+            haversineKm(
+              c.latitude,
+              c.longitude,
+              court.latitude,
+              court.longitude,
+            ) < 0.05,
+        );
+        if (nearby === -1) {
+          seen.push(court);
+        } else if (court.court_count > seen[nearby].court_count) {
+          seen[nearby] = court;
+        }
+      }
+      return seen;
     },
     enabled: bounds !== null,
     staleTime: 60_000,

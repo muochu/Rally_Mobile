@@ -1,0 +1,46 @@
+appId: com.rally.app
+name: Sign up and complete onboarding
+---
+- launchApp:
+    clearState: true
+
+# Auth screen
+- assertVisible: "Schedule sport in one tap"
+- tapOn: "Continue with Email"
+
+# Email sign-in screen
+- tapOn:
+    id: "email-input"
+- typeText: "test@rally-e2e.com"
+- tapOn:
+    id: "password-input"
+- typeText: "TestPassword123!"
+- tapOn: "Sign in"
+
+# Step 1 — Gender
+- assertVisible: "How do you identify?"
+- tapOn: "Male"
+- tapOn: "Continue"
+
+# Step 2 — Skill
+- assertVisible: "What's your skill level?"
+- tapOn: "Continue"
+
+# Step 3 — Location
+- assertVisible: "Where do you play?"
+- tapOn: "Use my location"
+- tapOn: "Continue"
+
+# Step 4 — Calendar
+- assertVisible: "Connect your calendar"
+- tapOn: "Connect Apple Calendar"
+- tapOn: "Continue"
+
+# Step 5 — Preferred hours
+- assertVisible: "When do you like to play?"
+- tapOn: "Weekday evenings"
+- tapOn: "Weekends"
+- tapOn: "Continue"
+
+# Should land on Hub
+- assertVisible: "Schedule a match"

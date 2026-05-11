@@ -24,7 +24,9 @@ import {
   submitReview,
   useMatches,
 } from '@/hooks/use-matches';
+import { encodeSlotId } from '@/lib/format-slot';
 import { haptics } from '@/lib/haptics';
+import { requestReviewIfAvailable } from '@/lib/store-review';
 import { colors } from '@/theme/colors';
 import { spacing } from '@/theme/spacing';
 
@@ -74,7 +76,10 @@ export default function MatchesScreen(): ReactElement {
   const handleMarkComplete = useCallback(
     (matchId: string): void => {
       haptics.success();
-      void markMatchComplete(matchId).then(invalidate);
+      void markMatchComplete(matchId).then(async () => {
+        invalidate();
+        await requestReviewIfAvailable();
+      });
     },
     [invalidate],
   );
@@ -105,11 +110,21 @@ export default function MatchesScreen(): ReactElement {
 
   const handleBook = useCallback(
     (request: PendingRequest): void => {
-      router.push(
-        `/match/picker/${request.opponentId}?name=${encodeURIComponent(request.opponentName)}` as Parameters<
-          typeof router.push
-        >[0],
-      );
+      const encodedName = encodeURIComponent(request.opponentName);
+      if (request.proposedStart && request.proposedEnd) {
+        const slotId = encodeSlotId(request.proposedStart, request.proposedEnd);
+        router.push(
+          `/match/confirm/${request.opponentId}/${slotId}?name=${encodedName}&requestId=${request.id}&requesterId=${request.opponentId}` as Parameters<
+            typeof router.push
+          >[0],
+        );
+      } else {
+        router.push(
+          `/match/picker/${request.opponentId}?name=${encodedName}&requestId=${request.id}` as Parameters<
+            typeof router.push
+          >[0],
+        );
+      }
     },
     [router],
   );

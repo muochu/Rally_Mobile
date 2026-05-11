@@ -1,5 +1,7 @@
 import { useEffect } from 'react';
 import { AppState } from 'react-native';
+
+import { trackEvent } from '@/lib/analytics';
 import { getAppleBusyIntervals } from '@/lib/calendar/apple';
 import { getGoogleBusyIntervals } from '@/lib/calendar/google';
 import type { BusyInterval } from '@/lib/calendar/types';
@@ -47,6 +49,8 @@ const syncSource = async (
 
 export const syncAvailability = async (): Promise<void> => runSync();
 
+let hasFiredFirstSync = false;
+
 const runSync = async (): Promise<void> => {
   const {
     data: { session },
@@ -60,25 +64,20 @@ const runSync = async (): Promise<void> => {
 
   const [appleIntervals, googleIntervals] = await Promise.all([
     getAppleBusyIntervals(LOOKAHEAD_DAYS),
-    getGoogleBusyIntervals(),
+    getGoogleBusyIntervals(LOOKAHEAD_DAYS),
   ]);
 
+  const hasAny = appleIntervals.length > 0 || googleIntervals.length > 0;
+
   await Promise.all([
-    syncSource(
-      session.user.id,
-      'apple',
-      appleIntervals,
-      windowStart,
-      windowEnd,
-    ),
-    syncSource(
-      session.user.id,
-      'google',
-      googleIntervals,
-      windowStart,
-      windowEnd,
-    ),
+    syncSource(session.user.id, 'apple', appleIntervals, windowStart, windowEnd),
+    syncSource(session.user.id, 'google', googleIntervals, windowStart, windowEnd),
   ]);
+
+  if (hasAny && !hasFiredFirstSync) {
+    hasFiredFirstSync = true;
+    trackEvent('first_availability_synced');
+  }
 };
 
 export const useAvailabilitySync = (): void => {

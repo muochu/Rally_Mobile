@@ -1,7 +1,7 @@
-import type { ReactElement } from 'react';
-import { useEffect, useRef } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Check } from 'lucide-react-native';
+import type { ReactElement } from 'react';
+import { useEffect, useRef } from 'react';
 import {
   Animated,
   Linking,
@@ -12,6 +12,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
 import { CalendarEventPreview } from '@/components/feature/calendar-event-preview';
 import { Button } from '@/components/ui/button';
 import {
@@ -20,26 +21,37 @@ import {
   formatSlotDate,
   formatTimeRange,
 } from '@/lib/format-slot';
+import { haptics } from '@/lib/haptics';
 import { colors } from '@/theme/colors';
 import { radii, spacing } from '@/theme/spacing';
 
 export default function BookedScreen(): ReactElement {
   const router = useRouter();
-  const { slotId, name, calDenied } = useLocalSearchParams<{
+  const { slotId, name, calDenied, mode } = useLocalSearchParams<{
     matchId: string;
     slotId: string;
     name?: string;
     calDenied?: string;
+    mode?: string;
   }>();
 
   const opponentName = name ?? 'Player';
   const calendarDenied = calDenied === 'true';
+  const isRequestMode = mode === 'requested';
   const { start, end } = decodeSlotId(slotId);
 
   const scale = useRef(new Animated.Value(0)).current;
   const opacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    if (isRequestMode) {
+      haptics.success();
+      return;
+    }
+    haptics.heavy();
+    const t = setTimeout((): void => {
+      haptics.success();
+    }, 180);
     Animated.sequence([
       Animated.spring(scale, {
         toValue: 1,
@@ -53,6 +65,7 @@ export default function BookedScreen(): ReactElement {
         useNativeDriver: true,
       }),
     ]).start();
+    return (): void => clearTimeout(t);
   }, [scale, opacity]);
 
   const handleViewInCalendar = async (): Promise<void> => {
@@ -74,29 +87,34 @@ export default function BookedScreen(): ReactElement {
             <Check size={40} color={colors.text.inverse} strokeWidth={2.5} />
           </Animated.View>
           <Animated.View style={{ opacity }}>
-            <Text style={styles.heroTitle}>Match scheduled</Text>
+            <Text style={styles.heroTitle}>
+              {isRequestMode ? 'Request sent!' : 'Match scheduled'}
+            </Text>
             <Text style={styles.heroSub}>
-              {formatSlotDate(start)} · {formatTimeRange(start, end)} ·{' '}
-              {formatDuration(start, end)}
+              {isRequestMode
+                ? `${opponentName} will be notified and can accept your request.`
+                : `${formatSlotDate(start)} · ${formatTimeRange(start, end)} · ${formatDuration(start, end)}`}
             </Text>
           </Animated.View>
         </View>
 
-        {/* Calendar event previews */}
-        <Animated.View style={[styles.previewSection, { opacity }]}>
-          <CalendarEventPreview
-            label="Your calendar event"
-            title="Tennis match – Rally"
-            dateLabel={formatSlotDate(start)}
-            timeRange={formatTimeRange(start, end)}
-          />
-          <CalendarEventPreview
-            label={`${opponentName}'s invite`}
-            title="Tennis match – Rally"
-            dateLabel={formatSlotDate(start)}
-            timeRange={formatTimeRange(start, end)}
-          />
-        </Animated.View>
+        {/* Calendar event previews — only shown when match is booked */}
+        {!isRequestMode && (
+          <Animated.View style={[styles.previewSection, { opacity }]}>
+            <CalendarEventPreview
+              label="Your calendar event"
+              title="Tennis match – Rally"
+              dateLabel={formatSlotDate(start)}
+              timeRange={formatTimeRange(start, end)}
+            />
+            <CalendarEventPreview
+              label={`${opponentName}'s invite`}
+              title="Tennis match – Rally"
+              dateLabel={formatSlotDate(start)}
+              timeRange={formatTimeRange(start, end)}
+            />
+          </Animated.View>
+        )}
 
         {/* Calendar denied banner */}
         {calendarDenied && (
@@ -109,7 +127,7 @@ export default function BookedScreen(): ReactElement {
       </ScrollView>
 
       <View style={styles.footer}>
-        {!calendarDenied && (
+        {!isRequestMode && !calendarDenied && (
           <Pressable
             style={styles.calendarLink}
             onPress={handleViewInCalendar}
@@ -120,7 +138,7 @@ export default function BookedScreen(): ReactElement {
           </Pressable>
         )}
         <Button
-          label="Done"
+          label={isRequestMode ? 'Back to Hub' : 'Done'}
           onPress={() =>
             router.navigate(
               '/(tabs)/hub' as Parameters<typeof router.navigate>[0],

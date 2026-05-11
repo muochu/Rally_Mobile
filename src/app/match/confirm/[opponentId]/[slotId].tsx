@@ -12,6 +12,12 @@ import {
   Text,
   View,
 } from 'react-native';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSequence,
+  withSpring,
+} from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CalendarEventPreview } from '@/components/feature/calendar-event-preview';
@@ -23,24 +29,38 @@ import {
   formatTimeRange,
 } from '@/lib/format-slot';
 import { haptics } from '@/lib/haptics';
-import { confirmMatch, UserFacingError } from '@/lib/match-flow';
+import {
+  acceptScheduleRequest,
+  sendScheduleRequest,
+  UserFacingError,
+} from '@/lib/match-flow';
 import { supabase } from '@/lib/supabase';
 import { colors } from '@/theme/colors';
 import { radii, spacing } from '@/theme/spacing';
 
 export default function ConfirmScreen(): ReactElement {
   const router = useRouter();
-  const { opponentId, slotId, name } = useLocalSearchParams<{
-    opponentId: string;
-    slotId: string;
-    name?: string;
-  }>();
+  const { opponentId, slotId, name, requestId, requesterId } =
+    useLocalSearchParams<{
+      opponentId: string;
+      slotId: string;
+      name?: string;
+      requestId?: string;
+      requesterId?: string;
+    }>();
 
   const opponentName = name ?? 'Player';
   const { start, end } = decodeSlotId(slotId);
+  const isAccepting = Boolean(requestId);
 
   const [opponentUtr, setOpponentUtr] = useState<number | null>(null);
   const [calendarDeniedBanner, setCalendarDeniedBanner] = useState(false);
+  const [isBooked, setIsBooked] = useState(false);
+
+  const bookedScale = useSharedValue(1);
+  const bookedAnimStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: bookedScale.value }],
+  }));
 
   useEffect(() => {
     supabase
@@ -53,18 +73,54 @@ export default function ConfirmScreen(): ReactElement {
       });
   }, [opponentId]);
 
+  const mutationFn = (): Promise<{
+    matchId?: string;
+    requestId?: string;
+    calendarDenied?: boolean;
+  }> => {
+    if (isAccepting && requestId && requesterId) {
+      return acceptScheduleRequest({
+        requestId,
+        requesterId,
+        slotStart: start,
+        slotEnd: end,
+      });
+    }
+    return sendScheduleRequest({
+      recipientId: opponentId,
+      proposedStart: start,
+      proposedEnd: end,
+    });
+  };
+
   const { mutate, isPending, error, reset } = useMutation({
-    mutationFn: () =>
-      confirmMatch({ opponentId, slotStart: start, slotEnd: end }),
+    mutationFn,
     onSuccess: (result) => {
       haptics.heavy();
-      if (result.calendarDenied) setCalendarDeniedBanner(true);
-      const encodedName = encodeURIComponent(opponentName);
-      router.replace(
-        `/match/booked/${result.matchId}?slotId=${slotId}&name=${encodedName}&calDenied=${result.calendarDenied}` as Parameters<
-          typeof router.replace
-        >[0],
+      setIsBooked(true);
+      bookedScale.value = withSequence(
+        withSpring(1.06, { damping: 6, stiffness: 400 }),
+        withSpring(1, { damping: 14, stiffness: 300 }),
       );
+      const encodedName = encodeURIComponent(opponentName);
+      if (isAccepting && 'matchId' in result && result.matchId) {
+        if (result.calendarDenied) setCalendarDeniedBanner(true);
+        setTimeout(() => {
+          router.replace(
+            `/match/booked/${result.matchId}?slotId=${slotId}&name=${encodedName}&calDenied=${result.calendarDenied ?? false}` as Parameters<
+              typeof router.replace
+            >[0],
+          );
+        }, 700);
+      } else {
+        setTimeout(() => {
+          router.replace(
+            `/match/booked/requested?slotId=${slotId}&name=${encodedName}&mode=requested` as Parameters<
+              typeof router.replace
+            >[0],
+          );
+        }, 700);
+      }
     },
     onError: (err) => {
       haptics.error();
@@ -185,7 +241,13 @@ export default function ConfirmScreen(): ReactElement {
       </ScrollView>
 
       <View style={styles.footer}>
-        {isPending ? (
+        {isBooked ? (
+          <Animated.View style={[styles.successBtn, bookedAnimStyle]}>
+            <Text style={styles.successBtnText}>
+              {isAccepting ? 'Accepted!' : 'Sent!'}
+            </Text>
+          </Animated.View>
+        ) : isPending ? (
           <View style={styles.loadingRow}>
             <ActivityIndicator color={colors.accent.primary} />
             <Text style={styles.loadingText}>Booking match…</Text>
@@ -193,7 +255,7 @@ export default function ConfirmScreen(): ReactElement {
         ) : (
           <>
             <Button
-              label="Book and add to calendar"
+              label={isAccepting ? 'Accept and book' : 'Send match request'}
               onPress={handleConfirm}
               fullWidth
               disabled={isPending}
@@ -339,5 +401,18 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: colors.text.secondary,
+  },
+  successBtn: {
+    height: 56,
+    borderRadius: radii.md,
+    backgroundColor: colors.status.success,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  successBtnText: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: -0.3,
   },
 });

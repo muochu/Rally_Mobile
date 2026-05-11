@@ -1,10 +1,11 @@
-import { Star } from 'lucide-react-native';
 import type { ReactElement } from 'react';
 import { useState } from 'react';
+import { BlurView } from 'expo-blur';
+import { Star } from 'lucide-react-native';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
 import type { MatchWithOpponent } from '@/hooks/use-matches';
+import { haptics } from '@/lib/haptics';
 import { colors } from '@/theme/colors';
 import { radii, spacing } from '@/theme/spacing';
 
@@ -28,6 +29,7 @@ export const ReviewSheet = ({
   const handleSubmit = async (): Promise<void> => {
     if (!match) return;
     setSubmitting(true);
+    haptics.success();
     try {
       await onSubmit(match.id, rating, noShow);
     } finally {
@@ -48,7 +50,9 @@ export const ReviewSheet = ({
       transparent
       onRequestClose={handleClose}
     >
-      <Pressable style={styles.backdrop} onPress={handleClose} />
+      <Pressable style={styles.backdrop} onPress={handleClose}>
+        <BlurView tint="dark" intensity={30} style={StyleSheet.absoluteFill} />
+      </Pressable>
       <View style={styles.sheetWrapper}>
         <SafeAreaView edges={['bottom']}>
           <View style={styles.handle} />
@@ -62,7 +66,10 @@ export const ReviewSheet = ({
             {[1, 2, 3, 4, 5].map((star) => (
               <Pressable
                 key={star}
-                onPress={(): void => setRating(star)}
+                onPress={(): void => {
+                  haptics.light();
+                  setRating(star);
+                }}
                 accessibilityRole="button"
                 accessibilityLabel={`${star} star${star !== 1 ? 's' : ''}`}
                 style={styles.starBtn}
@@ -83,7 +90,10 @@ export const ReviewSheet = ({
 
           {/* No-show toggle */}
           <Pressable
-            onPress={(): void => setNoShow((v) => !v)}
+            onPress={(): void => {
+              haptics.light();
+              setNoShow((v) => !v);
+            }}
             style={styles.noShowRow}
             accessibilityRole="checkbox"
             accessibilityState={{ checked: noShow }}
@@ -125,7 +135,7 @@ export const ReviewSheet = ({
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: 'transparent',
   },
   sheetWrapper: {
     backgroundColor: colors.background.elevated,

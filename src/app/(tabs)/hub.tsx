@@ -74,9 +74,12 @@ export default function HubScreen(): ReactElement {
 
   const filteredPlayers = useMemo(() => {
     if (skillFilter === 'all') return players;
-    // 'similar' filter requires user's own UTR — available in Phase 9 profile fetch
-    return players;
-  }, [players, skillFilter]);
+    const userUtr = profile?.utr_rating;
+    if (userUtr == null) return players;
+    return players.filter(
+      (p) => p.utr_rating != null && Math.abs(p.utr_rating - userUtr) <= 1.5,
+    );
+  }, [players, skillFilter, profile?.utr_rating]);
 
   const handlePlayerPress = useCallback(
     (player: NearbyPlayer): void => {
@@ -206,8 +209,12 @@ export default function HubScreen(): ReactElement {
                   showsHorizontalScrollIndicator={false}
                   contentContainerStyle={styles.cardScroll}
                 >
-                  {daySummaries.map((s) => (
-                    <FreeWindowCard key={s.dateKey} summary={s} />
+                  {daySummaries.map((s, i) => (
+                    <FreeWindowCard
+                      key={s.dateKey}
+                      summary={s}
+                      staggerIndex={i}
+                    />
                   ))}
                 </ScrollView>
               )}
@@ -264,7 +271,11 @@ export default function HubScreen(): ReactElement {
                   {filteredPlayers.map((player, i) => (
                     <View key={player.id}>
                       {i > 0 && <View style={styles.divider} />}
-                      <PlayerCard player={player} onPress={handlePlayerPress} />
+                      <PlayerCard
+                        player={player}
+                        onPress={handlePlayerPress}
+                        staggerIndex={i}
+                      />
                     </View>
                   ))}
                 </View>

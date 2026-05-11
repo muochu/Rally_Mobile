@@ -1,15 +1,16 @@
-import { X } from 'lucide-react-native';
 import type { ReactElement } from 'react';
 import { useState } from 'react';
+import { BlurView } from 'expo-blur';
+import { X } from 'lucide-react-native';
 import {
   ActivityIndicator,
+  Linking,
   Modal,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
-
 import type { Court, TrafficState } from '@/hooks/use-courts';
 import { getTrafficState, setHomeCourt } from '@/hooks/use-courts';
 import { colors } from '@/theme/colors';
@@ -77,7 +78,9 @@ export function CourtDetailSheet({
       transparent
       onRequestClose={onClose}
     >
-      <Pressable style={styles.backdrop} onPress={onClose} />
+      <Pressable style={styles.backdrop} onPress={onClose}>
+        <BlurView tint="dark" intensity={25} style={StyleSheet.absoluteFill} />
+      </Pressable>
       <View style={styles.sheet}>
         <View style={styles.handle} />
 
@@ -135,21 +138,38 @@ export function CourtDetailSheet({
           </View>
         </View>
 
-        <Pressable
-          style={[styles.homeBtn, isHome && styles.homeBtnActive]}
-          onPress={isHome ? onClose : handleSetHome}
-          disabled={saving}
-        >
-          {saving ? (
-            <ActivityIndicator size="small" color={colors.text.inverse} />
-          ) : (
-            <Text
-              style={[styles.homeBtnText, isHome && styles.homeBtnTextActive]}
+        <View style={styles.actions}>
+          <Pressable
+            style={[styles.homeBtn, isHome && styles.homeBtnActive]}
+            onPress={isHome ? onClose : handleSetHome}
+            disabled={saving}
+          >
+            {saving ? (
+              <ActivityIndicator size="small" color={colors.text.inverse} />
+            ) : (
+              <Text
+                style={[styles.homeBtnText, isHome && styles.homeBtnTextActive]}
+              >
+                {isHome ? 'Your home court' : 'Set as home court'}
+              </Text>
+            )}
+          </Pressable>
+
+          {court != null && (
+            <Pressable
+              style={styles.directionsBtn}
+              onPress={() =>
+                void Linking.openURL(
+                  `https://maps.apple.com/?daddr=${court.latitude},${court.longitude}&dirflg=d`,
+                )
+              }
+              accessibilityRole="button"
+              accessibilityLabel="Get directions"
             >
-              {isHome ? 'Your home court' : 'Set as home court'}
-            </Text>
+              <Text style={styles.directionsBtnText}>Get directions</Text>
+            </Pressable>
           )}
-        </Pressable>
+        </View>
       </View>
     </Modal>
   );
@@ -230,6 +250,9 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: colors.text.secondary,
   },
+  actions: {
+    gap: spacing.sm,
+  },
   homeBtn: {
     height: 48,
     borderRadius: radii.md,
@@ -247,5 +270,19 @@ const styles = StyleSheet.create({
   },
   homeBtnTextActive: {
     color: colors.accent.primary,
+  },
+  directionsBtn: {
+    height: 48,
+    borderRadius: radii.md,
+    backgroundColor: colors.background.secondary,
+    borderWidth: 1,
+    borderColor: colors.border.secondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  directionsBtnText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.text.primary,
   },
 });

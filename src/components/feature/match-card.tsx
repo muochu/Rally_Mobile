@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-
+import { StyleSheet, Text, View } from 'react-native';
+import { PressableScale } from '@/components/ui/pressable-scale';
 import type { MatchWithOpponent, PendingRequest } from '@/hooks/use-matches';
 import { formatSlotDate, formatTimeRange } from '@/lib/format-slot';
 import { colors } from '@/theme/colors';
@@ -66,14 +66,15 @@ const ActionButton = ({
   destructive,
   secondary,
 }: ActionButtonProps): ReactElement => (
-  <Pressable
+  <PressableScale
     onPress={onPress}
-    style={({ pressed }) => [
+    style={[
       styles.actionBtn,
       secondary && styles.actionBtnSecondary,
       destructive && styles.actionBtnDestructive,
-      pressed && styles.actionBtnPressed,
     ]}
+    haptic={destructive ? 'medium' : 'light'}
+    scale={0.95}
     accessibilityRole="button"
     accessibilityLabel={label}
   >
@@ -86,7 +87,7 @@ const ActionButton = ({
     >
       {label}
     </Text>
-  </Pressable>
+  </PressableScale>
 );
 
 // --- Main component ---
@@ -194,7 +195,7 @@ export const MatchCard = (props: MatchCardProps): ReactElement => {
             <Text style={styles.message}>"{request.message}"</Text>
           ) : null}
           <View style={styles.actions}>
-            <ActionButton label="View availability" onPress={onBook} />
+            <ActionButton label="Accept" onPress={onBook} />
             <ActionButton label="Decline" onPress={onDecline} destructive />
           </View>
         </View>
@@ -306,9 +307,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     borderWidth: 1,
     borderColor: colors.status.error,
-  },
-  actionBtnPressed: {
-    opacity: 0.7,
   },
   actionBtnText: {
     fontSize: 14,

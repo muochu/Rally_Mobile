@@ -49,6 +49,8 @@ type ScheduleRequestRow = {
   recipient_id: string;
   status: 'pending' | 'accepted' | 'declined' | 'expired' | 'cancelled';
   message: string | null;
+  proposed_start: string | null;
+  proposed_end: string | null;
   created_at: string;
   expires_at: string;
   responded_at: string | null;
@@ -152,6 +154,8 @@ export type Database = {
             | 'expired'
             | 'cancelled';
           message?: string | null;
+          proposed_start?: string | null;
+          proposed_end?: string | null;
           id?: string;
           created_at?: string;
           expires_at?: string;

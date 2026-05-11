@@ -1,6 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
-
+import { useQuery } from '@tanstack/react-query';
 import type { BusyInterval } from '@/lib/calendar/types';
 import type { FreeSlot, PreferredHours } from '@/lib/overlap';
 import { findMutualFreeSlots, sliceToMatchSlots } from '@/lib/overlap';
@@ -79,7 +78,7 @@ export const useNearbyPlayers = (
         };
       })
       .sort((a, b) => b.overlap_count - a.overlap_count);
-  }, [raw, myBusy]);
+  }, [raw, myBusy, preferred]);
 
   return { players, isLoading };
 };

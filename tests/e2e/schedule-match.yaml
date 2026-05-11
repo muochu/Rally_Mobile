@@ -1,0 +1,38 @@
+appId: com.rally.app
+name: Schedule a match end-to-end
+---
+- launchApp
+
+# Should already be signed in — land on Hub
+- assertVisible: "Schedule a match"
+
+# Tap a nearby player
+- assertVisible: "Players nearby"
+- tapOn:
+    index: 0
+    text: "Schedule a match"
+
+# Player profile sheet
+- assertVisible: "Schedule a match"
+- tapOn: "Schedule a match"
+
+# Mutual availability picker
+- assertVisible: "Pick a time"
+- tapOn:
+    index: 0
+    text: "Select"
+
+# Confirm screen
+- assertVisible: "Confirm & book"
+- assertVisible: "Book and add to calendar"
+- tapOn: "Book and add to calendar"
+
+# Calendar write permission prompt (iOS system alert)
+- tapOn: "OK"
+
+# Booked confirmation
+- assertVisible: "Booked!"
+- tapOn: "Done"
+
+# Back on Hub
+- assertVisible: "Schedule a match"

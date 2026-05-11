@@ -1,9 +1,10 @@
 import * as Calendar from 'expo-calendar';
-import { CheckCircle, RefreshCw } from 'lucide-react-native';
+import { CheckCircle, Circle, RefreshCw } from 'lucide-react-native';
 import type { ReactElement } from 'react';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   StyleSheet,
   Text,
@@ -11,6 +12,11 @@ import {
 } from 'react-native';
 
 import { syncAvailability } from '@/hooks/use-availability-sync';
+import {
+  connectGoogleCalendar,
+  disconnectGoogleCalendar,
+  isGoogleCalendarConnected,
+} from '@/lib/calendar/google';
 import { supabase } from '@/lib/supabase';
 import { colors } from '@/theme/colors';
 import { radii, spacing } from '@/theme/spacing';
@@ -24,16 +30,18 @@ export function CalendarPermissionsPanel({
   userId,
   onSynced,
 }: Props): ReactElement {
-  const [granted, setGranted] = useState(false);
+  const [appleGranted, setAppleGranted] = useState(false);
+  const [googleConnected, setGoogleConnected] = useState(false);
   const [lastSynced, setLastSynced] = useState<Date | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [connectingGoogle, setConnectingGoogle] = useState(false);
 
   useEffect(() => {
-    Calendar.getCalendarPermissionsAsync().then(({ status }) => {
-      setGranted(status === 'granted');
+    void Calendar.getCalendarPermissionsAsync().then(({ status }) => {
+      setAppleGranted(status === 'granted');
     });
-
-    supabase
+    void isGoogleCalendarConnected().then(setGoogleConnected);
+    void supabase
       .from('availability_blocks')
       .select('synced_at')
       .eq('user_id', userId)
@@ -56,6 +64,37 @@ export function CalendarPermissionsPanel({
     }
   };
 
+  const handleConnectGoogle = async (): Promise<void> => {
+    setConnectingGoogle(true);
+    try {
+      const ok = await connectGoogleCalendar();
+      if (ok) {
+        setGoogleConnected(true);
+        await handleSync();
+      }
+    } finally {
+      setConnectingGoogle(false);
+    }
+  };
+
+  const handleDisconnectGoogle = (): void => {
+    Alert.alert(
+      'Disconnect Google Calendar?',
+      'Your Google Calendar busy times will no longer be used for scheduling.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Disconnect',
+          style: 'destructive',
+          onPress: async (): Promise<void> => {
+            await disconnectGoogleCalendar();
+            setGoogleConnected(false);
+          },
+        },
+      ],
+    );
+  };
+
   const formatSynced = (d: Date): string => {
     const diffMin = Math.round((Date.now() - d.getTime()) / 60_000);
     if (diffMin < 1) return 'Just now';
@@ -67,27 +106,28 @@ export function CalendarPermissionsPanel({
 
   return (
     <View style={styles.panel}>
+      {/* Apple Calendar */}
       <View style={styles.row}>
         <View style={styles.calIcon}>
           <CheckCircle
             size={18}
-            color={granted ? colors.status.open : colors.text.tertiary}
+            color={appleGranted ? colors.status.open : colors.text.tertiary}
             strokeWidth={1.75}
           />
         </View>
         <View style={styles.calInfo}>
           <Text style={styles.calName}>Apple Calendar</Text>
           <Text style={styles.calStatus}>
-            {granted
+            {appleGranted
               ? lastSynced
                 ? `Synced ${formatSynced(lastSynced)}`
                 : 'Connected'
               : 'Not connected'}
           </Text>
         </View>
-        {granted && (
+        {appleGranted && (
           <Pressable
-            style={styles.syncBtn}
+            style={styles.actionBtn}
             onPress={handleSync}
             disabled={syncing}
             hitSlop={8}
@@ -103,6 +143,50 @@ export function CalendarPermissionsPanel({
             )}
           </Pressable>
         )}
+      </View>
+
+      <View style={styles.divider} />
+
+      {/* Google Calendar */}
+      <View style={styles.row}>
+        <View style={styles.calIcon}>
+          {googleConnected ? (
+            <CheckCircle
+              size={18}
+              color={colors.status.open}
+              strokeWidth={1.75}
+            />
+          ) : (
+            <Circle size={18} color={colors.text.tertiary} strokeWidth={1.75} />
+          )}
+        </View>
+        <View style={styles.calInfo}>
+          <Text style={styles.calName}>Google Calendar</Text>
+          <Text style={styles.calStatus}>
+            {googleConnected ? 'Connected' : 'Not connected'}
+          </Text>
+        </View>
+        <Pressable
+          style={styles.actionBtn}
+          onPress={
+            googleConnected ? handleDisconnectGoogle : handleConnectGoogle
+          }
+          disabled={connectingGoogle}
+          hitSlop={8}
+        >
+          {connectingGoogle ? (
+            <ActivityIndicator size="small" color={colors.accent.primary} />
+          ) : (
+            <Text
+              style={[
+                styles.actionText,
+                googleConnected && styles.actionTextDestructive,
+              ]}
+            >
+              {googleConnected ? 'Disconnect' : 'Connect'}
+            </Text>
+          )}
+        </Pressable>
       </View>
     </View>
   );
@@ -121,6 +205,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: spacing.lg,
     gap: spacing.md,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: colors.border.primary,
+    marginLeft: spacing.lg,
   },
   calIcon: {
     width: 32,
@@ -143,10 +232,18 @@ const styles = StyleSheet.create({
     color: colors.text.tertiary,
     marginTop: 2,
   },
-  syncBtn: {
-    width: 32,
+  actionBtn: {
+    minWidth: 32,
     height: 32,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  actionText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.accent.primary,
+  },
+  actionTextDestructive: {
+    color: colors.status.error,
   },
 });

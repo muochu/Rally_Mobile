@@ -1,16 +1,10 @@
 import * as Calendar from 'expo-calendar';
-
 import { trackEvent } from '@/lib/analytics';
-
+import { UserFacingError } from '@/lib/errors';
 import type { BusyInterval } from './calendar/types';
 import { supabase } from './supabase';
 
-export class UserFacingError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'UserFacingError';
-  }
-}
+export { UserFacingError };
 
 export const isSlotStillFree = (
   myBusy: BusyInterval[],
@@ -132,6 +126,143 @@ export const confirmMatch = async (
   // Notify opponent (fire and forget — graceful if edge function not deployed)
   void supabase.functions.invoke('notify-match-confirmed', {
     body: { matchId, opponentId },
+  });
+
+  return { matchId, calendarEventId, calendarDenied };
+};
+
+// ─── Two-sided request flow ───────────────────────────────────────────────────
+
+export type SendScheduleRequestParams = {
+  recipientId: string;
+  proposedStart: Date;
+  proposedEnd: Date;
+};
+
+export const sendScheduleRequest = async (
+  params: SendScheduleRequestParams,
+): Promise<{ requestId: string }> => {
+  const { recipientId, proposedStart, proposedEnd } = params;
+
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session) throw new Error('Not authenticated');
+
+  const { data: request, error } = await supabase
+    .from('schedule_requests')
+    .insert({
+      requester_id: session.user.id,
+      recipient_id: recipientId,
+      proposed_start: proposedStart.toISOString(),
+      proposed_end: proposedEnd.toISOString(),
+    })
+    .select('id')
+    .single();
+
+  if (error || !request) throw new Error(error?.message ?? 'Insert failed');
+
+  trackEvent('request_sent');
+
+  // Fire-and-forget push to recipient
+  void supabase.functions.invoke('notify-schedule-request', {
+    body: {
+      record: {
+        id: request.id,
+        requester_id: session.user.id,
+        recipient_id: recipientId,
+      },
+    },
+  });
+
+  return { requestId: request.id };
+};
+
+export type AcceptScheduleRequestParams = {
+  requestId: string;
+  requesterId: string;
+  slotStart: Date;
+  slotEnd: Date;
+};
+
+export const acceptScheduleRequest = async (
+  params: AcceptScheduleRequestParams,
+): Promise<ConfirmMatchResult> => {
+  const { requestId, requesterId, slotStart, slotEnd } = params;
+
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session) throw new Error('Not authenticated');
+  const myId = session.user.id;
+
+  // Insert match — recipient is player_a so they get the cal event
+  const { data: match, error: insertError } = await supabase
+    .from('matches')
+    .insert({
+      player_a: myId,
+      player_b: requesterId,
+      start_time: slotStart.toISOString(),
+      end_time: slotEnd.toISOString(),
+      status: 'upcoming',
+      schedule_request_id: requestId,
+    })
+    .select('id')
+    .single();
+
+  if (insertError || !match)
+    throw new Error(insertError?.message ?? 'Insert failed');
+  const matchId = match.id;
+
+  // Mark request accepted
+  await supabase
+    .from('schedule_requests')
+    .update({ status: 'accepted', responded_at: new Date().toISOString() })
+    .eq('id', requestId);
+
+  // Calendar write
+  let calendarEventId: string | null = null;
+  let calendarDenied = false;
+  try {
+    const { status } = await Calendar.requestCalendarPermissionsAsync();
+    if (status === 'granted') {
+      const calendars = await Calendar.getCalendarsAsync(
+        Calendar.EntityTypes.EVENT,
+      );
+      const writable =
+        calendars.find((c) => c.allowsModifications) ?? calendars[0];
+      if (writable) {
+        calendarEventId = await Calendar.createEventAsync(writable.id, {
+          title: 'Tennis match – Rally',
+          startDate: slotStart,
+          endDate: slotEnd,
+          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          notes: 'Booked via Rally',
+        });
+        await supabase
+          .from('matches')
+          .update({ apple_event_id_a: calendarEventId })
+          .eq('id', matchId);
+      }
+    } else {
+      calendarDenied = true;
+    }
+  } catch {
+    calendarDenied = true;
+  }
+
+  trackEvent('request_accepted');
+
+  // Notify requester
+  void supabase.functions.invoke('notify-request-response', {
+    body: {
+      record: {
+        id: requestId,
+        requester_id: requesterId,
+        recipient_id: myId,
+        status: 'accepted',
+      },
+    },
   });
 
   return { matchId, calendarEventId, calendarDenied };

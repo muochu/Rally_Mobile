@@ -1,0 +1,39 @@
+appId: com.rally.app
+name: Mark match complete and leave review
+---
+- launchApp
+
+# Navigate to Matches tab
+- tapOn: "Matches"
+- assertVisible: "Matches"
+
+# Upcoming tab should be visible by default
+- assertVisible: "Upcoming"
+
+# Mark the first upcoming match complete
+- tapOn: "Mark complete"
+
+# Confirm action (if alert fires)
+- optional:
+    - tapOn: "Confirm"
+
+# Tab should shift to Past automatically after completion
+- tapOn: "Past"
+- assertVisible: "Past"
+
+# Tap Review on the completed match
+- tapOn: "Review"
+
+# Review sheet
+- assertVisible: "Rate your match"
+
+# Tap 4 stars (third star in the row)
+- tapOn:
+    index: 3
+    id: "star-button"
+
+# Submit
+- tapOn: "Submit"
+
+# Review sheet dismisses, match card no longer has Review CTA
+- assertNotVisible: "Review"

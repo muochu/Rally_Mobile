@@ -1,18 +1,23 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import * as Notifications from 'expo-notifications';
 import { Stack, useRouter } from 'expo-router';
+import { requestTrackingPermissionsAsync } from 'expo-tracking-transparency';
 import type { ReactElement } from 'react';
 import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { ToastContainer } from '@/components/ui/toast';
 import { identifyUser, initAnalytics, resetAnalytics } from '@/lib/analytics';
-import { initSentry } from '@/lib/errors';
+import { initSentry, wrapWithSentry } from '@/lib/errors';
 import { registerForPushNotifications } from '@/lib/notifications';
 import { supabase } from '@/lib/supabase';
 
 initSentry();
-initAnalytics();
+
+void requestTrackingPermissionsAsync().then(() => {
+  initAnalytics();
+});
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -23,7 +28,7 @@ const queryClient = new QueryClient({
   },
 });
 
-export default function RootLayout(): ReactElement {
+function RootLayout(): ReactElement {
   const router = useRouter();
 
   useEffect((): (() => void) => {
@@ -65,8 +70,11 @@ export default function RootLayout(): ReactElement {
             <Stack.Screen name="(onboarding)" />
             <Stack.Screen name="match/[id]" />
           </Stack>
+          <ToastContainer />
         </QueryClientProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }
+
+export default wrapWithSentry(RootLayout);
