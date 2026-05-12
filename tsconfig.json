@@ -8,5 +8,11 @@
     },
     "types": ["node"]
   },
-  "include": ["src", "tests", "expo-env.d.ts", ".expo/types/**/*.ts"]
+  "include": [
+    "src",
+    "tests/**/*",
+    "jest.config.ts",
+    "expo-env.d.ts",
+    ".expo/types/**/*.ts"
+  ]
 }

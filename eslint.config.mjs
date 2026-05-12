@@ -13,6 +13,7 @@ export default tseslint.config(
       '.husky',
       'babel.config.js',
       'vitest.config.ts',
+      'jest.config.ts',
       'supabase/functions/**',
       'plugins/**',
     ],
@@ -21,6 +22,7 @@ export default tseslint.config(
   ...tseslint.configs.recommended,
   {
     files: ['**/*.{ts,tsx}'],
+    ignores: ['tests/**/*.tsx'],
     languageOptions: {
       parserOptions: {
         project: './tsconfig.json',
@@ -40,5 +42,13 @@ export default tseslint.config(
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
       ],
     },
-  }
+  },
+  {
+    files: ['tests/**/*.tsx'],
+    languageOptions: {
+      parserOptions: {
+        project: './tsconfig.test.json',
+      },
+    },
+  },
 );
