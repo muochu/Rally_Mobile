@@ -15,7 +15,7 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.rally.app",
+      "bundleIdentifier": "ca.rallyapp.mobile",
       "buildNumber": "1",
       "usesAppleSignIn": true,
       "infoPlist": {
@@ -40,7 +40,7 @@
         "android.permission.RECORD_AUDIO",
         "com.google.android.gms.permission.AD_ID"
       ],
-      "package": "com.rally.app"
+      "package": "ca.rallyapp.mobile"
     },
     "web": {
       "favicon": "./assets/favicon.png"
