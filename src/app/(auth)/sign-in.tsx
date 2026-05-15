@@ -58,7 +58,12 @@ export default function SignInScreen(): ReactElement {
         await routeAfterAuth(data.session.user.id, router);
       }
     } catch (err) {
-      if (err instanceof Error && err.message.includes('1001')) return;
+      if (
+        err instanceof Error &&
+        (err.message.includes('1001') ||
+          err.message.toLowerCase().includes('cancel'))
+      )
+        return;
       if (err instanceof UserFacingError) {
         setError(err.message);
       } else {
