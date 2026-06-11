@@ -1,4 +1,5 @@
 import * as Sentry from '@sentry/react-native';
+
 import { env } from '@/lib/env';
 
 const PII_KEYS = new Set([
@@ -13,22 +14,27 @@ const PII_KEYS = new Set([
 
 export const initSentry = (): void => {
   if (!env.EXPO_PUBLIC_SENTRY_DSN) return;
-  Sentry.init({
-    dsn: env.EXPO_PUBLIC_SENTRY_DSN,
-    tracesSampleRate: 0.2,
-    enableLogs: true,
-    replaysSessionSampleRate: 0.1,
-    replaysOnErrorSampleRate: 1,
-    integrations: [Sentry.mobileReplayIntegration()],
-    beforeBreadcrumb(breadcrumb) {
-      if (breadcrumb.data) {
-        for (const key of PII_KEYS) {
-          delete breadcrumb.data[key];
+  try {
+    const replayIntegration =
+      typeof Sentry.mobileReplayIntegration === 'function'
+        ? [Sentry.mobileReplayIntegration()]
+        : [];
+    Sentry.init({
+      dsn: env.EXPO_PUBLIC_SENTRY_DSN,
+      tracesSampleRate: 0.2,
+      integrations: replayIntegration,
+      beforeBreadcrumb(breadcrumb) {
+        if (breadcrumb.data) {
+          for (const key of PII_KEYS) {
+            delete breadcrumb.data[key];
+          }
         }
-      }
-      return breadcrumb;
-    },
-  });
+        return breadcrumb;
+      },
+    });
+  } catch {
+    // Sentry init failed — app continues without crash reporting
+  }
 };
 
 export class UserFacingError extends Error {

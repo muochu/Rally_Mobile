@@ -4,6 +4,7 @@ import { Stack, useRouter } from 'expo-router';
 import { requestTrackingPermissionsAsync } from 'expo-tracking-transparency';
 import type { ReactElement } from 'react';
 import { useEffect } from 'react';
+import { Alert, ErrorUtils } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -15,17 +16,24 @@ import { supabase } from '@/lib/supabase';
 
 initSentry();
 
+const _afterSentryHandler = ErrorUtils.getGlobalHandler();
+ErrorUtils.setGlobalHandler((error: Error | null, isFatal?: boolean) => {
+  if (isFatal) {
+    Alert.alert(
+      'Rally Debug',
+      `${error?.message ?? 'unknown'}\n\n${error?.stack?.slice(0, 300) ?? ''}`,
+    );
+    return;
+  }
+  _afterSentryHandler?.(error, isFatal);
+});
+
 void requestTrackingPermissionsAsync().then(() => {
   initAnalytics();
 });
 
 const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: 2,
-      staleTime: 30_000,
-    },
-  },
+  defaultOptions: { queries: { retry: 2, staleTime: 30_000 } },
 });
 
 function RootLayout(): ReactElement {

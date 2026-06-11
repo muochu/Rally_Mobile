@@ -1,8 +1,9 @@
-// eslint-disable-next-line @typescript-eslint/no-require-imports, no-undef
-const { getSentryExpoConfig } = require('@sentry/react-native/metro');
+/* eslint-disable */
+const { getDefaultConfig } = require('expo/metro-config');
+const {
+  getBundleModeMetroConfig,
+} = require('react-native-worklets/bundleMode');
 
-// eslint-disable-next-line no-undef
-const config = getSentryExpoConfig(__dirname);
+const config = getDefaultConfig(__dirname);
 
-// eslint-disable-next-line no-undef
-module.exports = config;
+module.exports = getBundleModeMetroConfig(config);
