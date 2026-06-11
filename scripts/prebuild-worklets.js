@@ -47,6 +47,15 @@ function walkDir(dir, extensions = ['.ts', '.tsx', '.js', '.jsx']) {
   return results;
 }
 
+const workletsDir = path.join(
+  ROOT,
+  'node_modules/react-native-worklets/.worklets',
+);
+
+// Ensure the .worklets directory exists — npm install does NOT create it,
+// and the Babel plugin's writeFileSync will throw ENOENT without it.
+fs.mkdirSync(workletsDir, { recursive: true });
+
 // Include app source and reanimated source (which contains most worklets)
 const filesToTransform = [
   ...walkDir(path.join(ROOT, 'src')),
@@ -73,10 +82,6 @@ for (const file of filesToTransform) {
   }
 }
 
-const workletsDir = path.join(
-  ROOT,
-  'node_modules/react-native-worklets/.worklets',
-);
 const generated = fs
   .readdirSync(workletsDir)
   .filter((f) => f.endsWith('.js')).length;
