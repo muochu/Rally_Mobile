@@ -77,12 +77,34 @@ const filesToTransform = [
 let transformed = 0;
 let errors = 0;
 
+// Mimic Metro's Babel caller so class-property transforms are skipped for
+// Hermes (which supports class fields natively). Without this, TypeScript
+// class fields get hoisted to the constructor, changing the worklet
+// traversal order and producing different content hashes than Metro generates.
+const METRO_CALLER = {
+  name: 'metro',
+  bundler: 'metro',
+  platform: 'ios',
+  isDev: false,
+  isServer: false,
+  isReactServer: false,
+  isHMREnabled: false,
+  projectRoot: ROOT,
+  routerRoot: 'app',
+  supportsStaticESM: false,
+  engine: 'hermes',
+};
+
 for (const file of filesToTransform) {
   try {
     babel.transformFileSync(file, {
       configFile: BABELRC,
       cwd: ROOT,
       filename: file,
+      caller: {
+        ...METRO_CALLER,
+        isNodeModule: file.includes('/node_modules/'),
+      },
     });
     transformed++;
   } catch (_) {
@@ -90,10 +112,48 @@ for (const file of filesToTransform) {
   }
 }
 
-const generated = fs
-  .readdirSync(workletsDir)
-  .filter((f) => f.endsWith('.js')).length;
+let workletFiles = fs.readdirSync(workletsDir).filter((f) => f.endsWith('.js'));
+
+// Copy to a visible project-root directory so Metro/watchman can hash the files.
+// node_modules/react-native-worklets/.worklets is a hidden dot-directory that
+// watchman won't crawl; _rn_worklets at the project root has no such restriction.
+const visibleDir = path.join(ROOT, '_rn_worklets');
+fs.mkdirSync(visibleDir, { recursive: true });
+for (const file of workletFiles) {
+  fs.copyFileSync(path.join(workletsDir, file), path.join(visibleDir, file));
+}
+
+// Second pass: Metro transforms worklet files themselves (from _rn_worklets/) using
+// their visible path. The Babel plugin may find nested worklet calls inside those
+// files and extract them as new worklet files. Run until no new files appear.
+// Root cause: toIdentifier('9093088135464.js1') === 'js1', so worklet files at
+// _rn_worklets/<hash>.js generate factory names like 'js1Factory' when re-processed.
+let pass = 0;
+let prevCount = workletFiles.length;
+do {
+  prevCount = workletFiles.length;
+  for (const file of workletFiles) {
+    const visiblePath = path.join(visibleDir, file);
+    try {
+      babel.transformFileSync(visiblePath, {
+        configFile: BABELRC,
+        cwd: ROOT,
+        filename: visiblePath,
+        caller: { ...METRO_CALLER, isNodeModule: false },
+      });
+    } catch (_) {}
+  }
+  workletFiles = fs.readdirSync(workletsDir).filter((f) => f.endsWith('.js'));
+  // Copy any newly generated files to _rn_worklets/
+  for (const file of workletFiles) {
+    const dest = path.join(visibleDir, file);
+    if (!fs.existsSync(dest)) {
+      fs.copyFileSync(path.join(workletsDir, file), dest);
+    }
+  }
+  pass++;
+} while (workletFiles.length > prevCount && pass < 5);
 
 console.log(
-  `[worklets prebuild] Transformed ${transformed} files (${errors} skipped), ${generated} worklet files generated.`,
+  `[worklets prebuild] Transformed ${transformed} files (${errors} skipped), ${workletFiles.length} worklet files → _rn_worklets/ (${pass} nested pass${pass === 1 ? '' : 'es'}).`,
 );
