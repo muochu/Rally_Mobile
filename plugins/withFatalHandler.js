@@ -19,10 +19,26 @@ const FATAL_HANDLER_SWIFT = `    // Prevent abort() when a void TurboModule meth
     // Without this, RCTExceptionsManager.reportFatal calls the default handler
     // which re-throws an NSException through C++ → std::terminate → abort().
     RCTSetFatalHandler { error in
-      NSLog("[Rally] RCT fatal caught: %@", error?.localizedDescription ?? "nil")
+      let msg = error?.localizedDescription ?? "nil"
+      NSLog("[Rally] RCT fatal caught: %@", msg)
+      DispatchQueue.main.async {
+        guard let scene = UIApplication.shared.connectedScenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene,
+              let root = scene.windows.first?.rootViewController else { return }
+        let alert = UIAlertController(title: "Rally Fatal", message: msg, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        root.present(alert, animated: true)
+      }
     }
     RCTSetFatalExceptionHandler { exception in
-      NSLog("[Rally] RCT fatal exception caught: %@", exception?.reason ?? "nil")
+      let msg = exception?.reason ?? "nil"
+      NSLog("[Rally] RCT fatal exception caught: %@", msg)
+      DispatchQueue.main.async {
+        guard let scene = UIApplication.shared.connectedScenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene,
+              let root = scene.windows.first?.rootViewController else { return }
+        let alert = UIAlertController(title: "Rally Fatal Exception", message: msg, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        root.present(alert, animated: true)
+      }
     }
     `;
 
