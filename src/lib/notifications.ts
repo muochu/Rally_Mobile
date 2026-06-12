@@ -3,19 +3,23 @@ import { Platform } from 'react-native';
 
 import { supabase } from '@/lib/supabase';
 
-try {
-  Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowAlert: true,
-      shouldPlaySound: true,
-      shouldSetBadge: false,
-      shouldShowBanner: true,
-      shouldShowList: true,
-    }),
-  });
-} catch {
-  // ignore if notification handler setup fails on this OS version
-}
+// Called explicitly from _layout.tsx after the React tree mounts.
+// Kept out of module scope so a native throw on startup can't abort the process.
+export const initNotifications = (): void => {
+  try {
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+        shouldShowBanner: true,
+        shouldShowList: true,
+      }),
+    });
+  } catch {
+    // ignore if notification handler setup fails
+  }
+};
 
 export const registerForPushNotifications = async (
   userId: string,

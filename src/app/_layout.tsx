@@ -11,10 +11,14 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ToastContainer } from '@/components/ui/toast';
 import { identifyUser, initAnalytics, resetAnalytics } from '@/lib/analytics';
 import { initSentry, wrapWithSentry } from '@/lib/errors';
-import { registerForPushNotifications } from '@/lib/notifications';
+import {
+  initNotifications,
+  registerForPushNotifications,
+} from '@/lib/notifications';
 import { supabase } from '@/lib/supabase';
 
 initSentry();
+initNotifications();
 
 const _afterSentryHandler = ErrorUtils.getGlobalHandler();
 ErrorUtils.setGlobalHandler((error: Error | null, isFatal?: boolean) => {

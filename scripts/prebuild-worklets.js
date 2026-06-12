@@ -56,14 +56,22 @@ const workletsDir = path.join(
 // and the Babel plugin's writeFileSync will throw ENOENT without it.
 fs.mkdirSync(workletsDir, { recursive: true });
 
-// Include app source and reanimated source (which contains most worklets)
+const NM = path.join(ROOT, 'node_modules');
+
 const filesToTransform = [
   ...walkDir(path.join(ROOT, 'src')),
-  ...walkDir(path.join(ROOT, 'node_modules/react-native-reanimated/src')),
-  ...walkDir(
-    path.join(ROOT, 'node_modules/react-native-reanimated/lib/module'),
-    ['.js'],
-  ),
+  ...walkDir(path.join(NM, 'react-native-reanimated/src')),
+  ...walkDir(path.join(NM, 'react-native-reanimated/lib/module'), ['.js']),
+  ...walkDir(path.join(NM, 'react-native-worklets/src')),
+  ...walkDir(path.join(NM, 'react-native-worklets/lib/module'), ['.js']),
+  ...walkDir(path.join(NM, 'react-native-gesture-handler/src')),
+  ...walkDir(path.join(NM, 'react-native-gesture-handler/lib/module'), ['.js']),
+  ...walkDir(path.join(NM, 'react-native-screens/src')),
+  ...walkDir(path.join(NM, 'react-native-screens/lib/module'), ['.js']),
+  ...walkDir(path.join(NM, 'react-native-drawer-layout/src')),
+  ...walkDir(path.join(NM, 'react-native-drawer-layout/lib/module'), ['.js']),
+  ...walkDir(path.join(NM, '@expo/ui/src')),
+  ...walkDir(path.join(NM, '@expo/ui/build'), ['.js']),
 ];
 
 let transformed = 0;

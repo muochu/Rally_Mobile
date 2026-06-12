@@ -15,14 +15,12 @@ const PII_KEYS = new Set([
 export const initSentry = (): void => {
   if (!env.EXPO_PUBLIC_SENTRY_DSN) return;
   try {
-    const replayIntegration =
-      typeof Sentry.mobileReplayIntegration === 'function'
-        ? [Sentry.mobileReplayIntegration()]
-        : [];
     Sentry.init({
       dsn: env.EXPO_PUBLIC_SENTRY_DSN,
       tracesSampleRate: 0.2,
-      integrations: replayIntegration,
+      // mobileReplayIntegration disabled: registers native void-method hooks that
+      // throw on iOS 26.5, crashing via ObjCTurboModule::performVoidMethodInvocation.
+      integrations: [],
       beforeBreadcrumb(breadcrumb) {
         if (breadcrumb.data) {
           for (const key of PII_KEYS) {
