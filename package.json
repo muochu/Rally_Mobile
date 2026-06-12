@@ -13,7 +13,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:components": "jest --config jest.config.ts",
-    "prepare": "husky"
+    "prepare": "husky",
+    "eas-build-post-install": "node scripts/prebuild-worklets.js"
   },
   "dependencies": {
     "@expo/config-plugins": "^56.0.8",
