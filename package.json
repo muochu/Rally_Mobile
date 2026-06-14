@@ -14,7 +14,7 @@
     "test:watch": "vitest",
     "test:components": "jest --config jest.config.ts",
     "prepare": "husky",
-    "postinstall": "patch-package",
+    "postinstall": "npx patch-package",
     "eas-build-post-install": "node scripts/prebuild-worklets.js"
   },
   "dependencies": {
