@@ -129,15 +129,17 @@ export default function CourtsScreen(): ReactElement {
         fetch(url)
           .then((res) => res.json())
           .then((json) => {
-            const { features } = GeocodeResponseSchema.parse(json);
+            const result = GeocodeResponseSchema.safeParse(json);
+            if (!result.success) return;
             setSuggestions(
-              features.map((f) => ({
+              result.data.features.map((f) => ({
                 id: f.id,
                 place_name: f.place_name,
                 center: f.center,
               })),
             );
           })
+          .catch(() => {})
           .finally((): void => setSearching(false));
       }, 350);
     },

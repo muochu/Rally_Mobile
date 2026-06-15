@@ -12,22 +12,15 @@ const config = getDefaultConfig(__dirname);
 const finalConfig = getBundleModeMetroConfig(config);
 
 // getBundleModeMetroConfig forces inlineRequires: true, which breaks Expo Router's
-// route context — modules can appear partially-initialized when loaded via
-// require.context, causing loadRoute() to return undefined and crashing on startup.
-// Expo's default is false; restore it after applying the worklet config.
-const workletGetTransformOptions = finalConfig.transformer.getTransformOptions;
-finalConfig.transformer.getTransformOptions = async (...args) => {
-  const options = workletGetTransformOptions
-    ? await workletGetTransformOptions(...args)
-    : {};
-  return {
-    ...options,
-    transform: {
-      ...options.transform,
-      inlineRequires: false,
-    },
-  };
-};
+// require.context route loading — loadRoute() returns undefined → 'ErrorBoundary'
+// crash at ContextNavigator. Worklet bundles are separate files and don't need
+// inlineRequires on the main bundle. Replace entirely to guarantee false.
+finalConfig.transformer.getTransformOptions = async () => ({
+  transform: {
+    experimentalImportSupport: false,
+    inlineRequires: false,
+  },
+});
 
 // getBundleModeMetroConfig resolves worklet requires to
 // node_modules/react-native-worklets/.worklets/<hash>.js — a hidden directory
