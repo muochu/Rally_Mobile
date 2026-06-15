@@ -11,6 +11,24 @@ const config = getDefaultConfig(__dirname);
 // Apply bundle mode (sets resolver + serializer for worklets)
 const finalConfig = getBundleModeMetroConfig(config);
 
+// getBundleModeMetroConfig forces inlineRequires: true, which breaks Expo Router's
+// route context — modules can appear partially-initialized when loaded via
+// require.context, causing loadRoute() to return undefined and crashing on startup.
+// Expo's default is false; restore it after applying the worklet config.
+const workletGetTransformOptions = finalConfig.transformer.getTransformOptions;
+finalConfig.transformer.getTransformOptions = async (...args) => {
+  const options = workletGetTransformOptions
+    ? await workletGetTransformOptions(...args)
+    : {};
+  return {
+    ...options,
+    transform: {
+      ...options.transform,
+      inlineRequires: false,
+    },
+  };
+};
+
 // getBundleModeMetroConfig resolves worklet requires to
 // node_modules/react-native-worklets/.worklets/<hash>.js — a hidden directory
 // that Metro/watchman cannot hash. We redirect those paths to _rn_worklets/ at
