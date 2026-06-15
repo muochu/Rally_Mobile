@@ -14,8 +14,7 @@
     "test:watch": "vitest",
     "test:components": "jest --config jest.config.ts",
     "prepare": "husky",
-    "postinstall": "npx patch-package",
-    "eas-build-post-install": "node scripts/prebuild-worklets.js"
+    "postinstall": "npx patch-package"
   },
   "dependencies": {
     "@expo/config-plugins": "^56.0.8",

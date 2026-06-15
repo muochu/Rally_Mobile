@@ -49,8 +49,10 @@ export default function SignInScreen(): ReactElement {
         nonce: rawNonce,
       });
 
-      if (authError)
+      if (authError) {
+        reportError(authError, { context: 'appleSignIn-supabase' });
         throw new UserFacingError('Apple sign-in failed. Please try again.');
+      }
       if (data.session) {
         haptics.success();
         if (data.user?.created_at === data.user?.last_sign_in_at)
@@ -86,8 +88,11 @@ export default function SignInScreen(): ReactElement {
         options: { redirectTo },
       });
 
-      if (oauthError || !data.url)
+      if (oauthError || !data.url) {
+        if (oauthError)
+          reportError(oauthError, { context: 'googleSignIn-oauth' });
         throw new UserFacingError('Could not connect to Google.');
+      }
 
       const result = await WebBrowser.openAuthSessionAsync(
         data.url,

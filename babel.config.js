@@ -3,6 +3,6 @@ module.exports = function (api) {
 
   return {
     presets: [['babel-preset-expo', { worklets: false }]],
-    plugins: [['react-native-worklets/plugin', { bundleMode: true }]],
+    plugins: ['react-native-worklets/plugin'],
   };
 };
