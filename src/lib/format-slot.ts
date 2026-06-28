@@ -50,7 +50,12 @@ export const formatDuration = (start: Date, end: Date): string => {
 export const encodeSlotId = (start: Date, end: Date): string =>
   `${start.getTime()}_${end.getTime()}`;
 
-export const decodeSlotId = (slotId: string): { start: Date; end: Date } => {
-  const [startMs, endMs] = slotId.split('_').map(Number);
+export const decodeSlotId = (
+  slotId: string,
+): { start: Date; end: Date } | null => {
+  const parts = (slotId ?? '').split('_');
+  const startMs = Number(parts[0]);
+  const endMs = Number(parts[1]);
+  if (!parts[0] || !parts[1] || isNaN(startMs) || isNaN(endMs)) return null;
   return { start: new Date(startMs), end: new Date(endMs) };
 };

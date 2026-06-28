@@ -116,14 +116,23 @@ export default function Step5HoursScreen(): ReactElement {
             onPress={selectAll}
             style={[
               styles.chip,
-              !hours.weekday_morning || !hours.weekday_evening || !hours.weekend
-                ? undefined
-                : styles.chipSelected,
+              hours.weekday_morning && hours.weekday_evening && hours.weekend
+                ? styles.chipSelected
+                : undefined,
             ]}
             accessibilityRole="button"
             accessibilityLabel="Anytime"
           >
-            <Text style={styles.chipLabel}>Anytime</Text>
+            <Text
+              style={[
+                styles.chipLabel,
+                hours.weekday_morning && hours.weekday_evening && hours.weekend
+                  ? styles.chipLabelSelected
+                  : undefined,
+              ]}
+            >
+              Anytime
+            </Text>
           </Pressable>
         </View>
 

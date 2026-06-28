@@ -2,8 +2,10 @@ import { useQueryClient } from '@tanstack/react-query';
 import * as Calendar from 'expo-calendar';
 import { useRouter } from 'expo-router';
 import type { ReactElement } from 'react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Alert,
+  AppState,
   Linking,
   RefreshControl,
   ScrollView,
@@ -25,14 +27,18 @@ import { useFreeWindows } from '@/hooks/use-free-windows';
 import { useNearbyPlayers } from '@/hooks/use-nearby-players';
 import { useProfile } from '@/hooks/use-profile';
 import { trackEvent } from '@/lib/analytics';
-import type { BusyInterval, FreeSlot } from '@/lib/calendar/types';
+import type { FreeSlot } from '@/lib/calendar/types';
+import { reportError } from '@/lib/errors';
 import { haptics } from '@/lib/haptics';
 import { colors } from '@/theme/colors';
 import { spacing } from '@/theme/spacing';
 
+export { TabErrorFallback as ErrorBoundary } from '@/components/ui/tab-error-fallback';
+
 export default function HubScreen(): ReactElement {
   const { session } = useAuth();
   const userId = session?.user.id;
+
   const queryClient = useQueryClient();
   const router = useRouter();
 
@@ -45,25 +51,49 @@ export default function HubScreen(): ReactElement {
   const [calendarDenied, setCalendarDenied] = useState(false);
   const [calendarConnected, setCalendarConnected] = useState(false);
 
-  useEffect((): void => {
-    Calendar.getCalendarPermissionsAsync().then(({ status }) => {
-      if (status === 'granted') setCalendarConnected(true);
+  const checkCalendarPermission = useCallback((): void => {
+    void Calendar.getCalendarPermissions().then(({ status }) => {
+      if (status === 'granted') {
+        setCalendarConnected(true);
+        setCalendarDenied(false);
+      } else {
+        setCalendarConnected(false);
+      }
     });
   }, []);
+
+  useEffect((): void => {
+    checkCalendarPermission();
+  }, [checkCalendarPermission]);
+
+  // Re-check when app comes back to foreground (user may have enabled in Settings)
+  const appStateRef = useRef(AppState.currentState);
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next) => {
+      if (
+        appStateRef.current.match(/inactive|background/) &&
+        next === 'active'
+      ) {
+        checkCalendarPermission();
+      }
+      appStateRef.current = next;
+    });
+    return (): void => sub.remove();
+  }, [checkCalendarPermission]);
 
   const { profile } = useProfile(userId);
   const preferred = profile?.preferred_hours ?? null;
 
   const {
     daySummaries,
+    busyIntervals,
     isLoading: windowsLoading,
     hasBlocks,
   } = useFreeWindows(userId, preferred);
 
-  const emptyBusy = useMemo((): BusyInterval[] => [], []);
   const { players, isLoading: playersLoading } = useNearbyPlayers(
     userId,
-    emptyBusy,
+    busyIntervals,
     preferred,
   );
 
@@ -117,23 +147,51 @@ export default function HubScreen(): ReactElement {
   }, [queryClient]);
 
   const handleConnectCalendar = useCallback(async (): Promise<void> => {
-    const existing = await Calendar.getCalendarPermissionsAsync();
-    if (existing.status === 'denied' && !existing.canAskAgain) {
-      await Linking.openSettings();
-      return;
-    }
-    const { status } = await Calendar.requestCalendarPermissionsAsync();
-    if (status === 'granted') {
-      haptics.success();
-      setCalendarDenied(false);
-      setCalendarConnected(true);
-      trackEvent('calendar_connected', { provider: 'apple' });
-      await syncAvailability();
-      await queryClient.invalidateQueries({
-        queryKey: ['availability-blocks'],
-      });
-    } else {
-      setCalendarDenied(true);
+    try {
+      const existing = await Calendar.getCalendarPermissions();
+      if (existing.status === 'denied' && !existing.canAskAgain) {
+        Alert.alert(
+          'Calendar access needed',
+          'Rally needs calendar access to find shared availability. Enable it in Settings → Privacy & Security → Calendars.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Open Settings',
+              onPress: (): void => {
+                void Linking.openSettings();
+              },
+            },
+          ],
+        );
+        return;
+      }
+      const { status } = await Calendar.requestCalendarPermissions();
+      if (status === 'granted') {
+        haptics.success();
+        setCalendarDenied(false);
+        setCalendarConnected(true);
+        trackEvent('calendar_connected', { provider: 'apple' });
+        try {
+          await syncAvailability();
+          await queryClient.invalidateQueries({
+            queryKey: ['availability-blocks'],
+          });
+        } catch (err) {
+          reportError(err, { context: 'handleConnectCalendar-sync' });
+          Alert.alert(
+            'Connected, but sync failed',
+            'Apple Calendar is connected, but we could not sync your availability yet. Pull to refresh to try again.',
+          );
+        }
+      } else {
+        setCalendarDenied(true);
+      }
+    } catch (err) {
+      reportError(err, { context: 'handleConnectCalendar' });
+      Alert.alert(
+        'Connection failed',
+        'Could not connect to Apple Calendar. Please try again.',
+      );
     }
   }, [queryClient]);
 
@@ -145,29 +203,42 @@ export default function HubScreen(): ReactElement {
         <Text style={styles.headerTitle}>Schedule a match</Text>
       </View>
 
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={handleRefresh}
-            tintColor={colors.accent.primary}
-          />
-        }
-      >
-        {showCalendarEmpty ? (
+      {showCalendarEmpty ? (
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={handleRefresh}
+              tintColor={colors.accent.primary}
+            />
+          }
+        >
           <CalendarConnectPrompt
             calendarDenied={calendarDenied}
             onConnect={handleConnectCalendar}
           />
-        ) : (
-          <>
-            <FreeWindowsSection
-              daySummaries={daySummaries}
-              isLoading={windowsLoading}
-            />
+        </ScrollView>
+      ) : (
+        <>
+          <FreeWindowsSection
+            daySummaries={daySummaries}
+            isLoading={windowsLoading}
+          />
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={isRefreshing}
+                onRefresh={handleRefresh}
+                tintColor={colors.accent.primary}
+              />
+            }
+          >
             <PlayersNearbySection
               filteredPlayers={filteredPlayers}
               playersLoading={playersLoading}
@@ -175,9 +246,9 @@ export default function HubScreen(): ReactElement {
               onFilterChange={setSkillFilter}
               onPlayerPress={handlePlayerPress}
             />
-          </>
-        )}
-      </ScrollView>
+          </ScrollView>
+        </>
+      )}
 
       <PlayerProfileSheet
         player={selectedPlayer}

@@ -77,10 +77,16 @@ export default function EmailSignInScreen(): ReactElement {
           options: { data: { full_name: values.fullName } },
         });
 
-      if (signUpError)
+      if (signUpError) {
+        const alreadyExists = signUpError.message
+          .toLowerCase()
+          .includes('already registered');
         throw new UserFacingError(
-          'Could not create account. Please try again.',
+          alreadyExists
+            ? 'Incorrect password. Check your password and try again.'
+            : 'Could not create account. Please try again.',
         );
+      }
       if (signUpData.session) {
         trackEvent('signed_up');
         await routeAfterAuth(signUpData.session.user.id, router);

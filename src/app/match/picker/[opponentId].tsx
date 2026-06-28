@@ -16,6 +16,7 @@ import { z } from 'zod';
 import { buildDayGroups, SlotPicker } from '@/components/feature/slot-picker';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/use-auth';
+import { useProfile } from '@/hooks/use-profile';
 import type { BusyInterval } from '@/lib/calendar/types';
 import { encodeSlotId } from '@/lib/format-slot';
 import { haptics } from '@/lib/haptics';
@@ -42,6 +43,8 @@ export default function PickerScreen(): ReactElement {
   }>();
   const { session } = useAuth();
   const userId = session?.user.id;
+  const { profile } = useProfile(userId);
+  const preferred = profile?.preferred_hours ?? null;
 
   const [lookahead, setLookahead] = useState<7 | 14>(7);
   const [selectedSlot, setSelectedSlot] = useState<FreeSlot | null>(null);
@@ -57,7 +60,7 @@ export default function PickerScreen(): ReactElement {
         supabase
           .from('availability_blocks')
           .select('start_time, end_time')
-          .eq('user_id', userId!)
+          .eq('user_id', userId ?? '')
           .gt('end_time', now.toISOString())
           .lt('start_time', end14.toISOString()),
         supabase.rpc('get_player_availability', {
@@ -96,8 +99,8 @@ export default function PickerScreen(): ReactElement {
   }, [data, lookahead]);
 
   const dayGroups = useMemo(
-    () => buildDayGroups(sliceToMatchSlots(mutualSlots)),
-    [mutualSlots],
+    () => buildDayGroups(sliceToMatchSlots(mutualSlots, preferred)),
+    [mutualSlots, preferred],
   );
 
   const handleContinue = useCallback((): void => {
@@ -147,7 +150,7 @@ export default function PickerScreen(): ReactElement {
               setSelectedSlot(null);
             }}
             accessibilityRole="button"
-            accessibilityLabel={days === 7 ? 'This week' : 'Next 14 days'}
+            accessibilityLabel={days === 7 ? 'Next 7 days' : 'Next 14 days'}
             accessibilityState={{ selected: lookahead === days }}
           >
             <Text
@@ -156,7 +159,7 @@ export default function PickerScreen(): ReactElement {
                 lookahead === days && styles.chipTextActive,
               ]}
             >
-              {days === 7 ? 'This week' : 'Next 14 days'}
+              {days === 7 ? 'Next 7 days' : 'Next 14 days'}
             </Text>
           </Pressable>
         ))}
@@ -168,9 +171,14 @@ export default function PickerScreen(): ReactElement {
         </View>
       ) : error ? (
         <View style={styles.center}>
-          <Text style={styles.errorText}>
-            Could not load availability. Pull to retry.
-          </Text>
+          <Text style={styles.errorText}>Could not load availability.</Text>
+          <Pressable
+            onPress={(): void => router.back()}
+            style={styles.retryBtn}
+            accessibilityRole="button"
+          >
+            <Text style={styles.retryText}>Go back</Text>
+          </Pressable>
         </View>
       ) : (
         <SlotPicker
@@ -258,6 +266,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.text.tertiary,
     textAlign: 'center',
+  },
+  retryBtn: {
+    marginTop: spacing.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+  },
+  retryText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.accent.primary,
   },
   footer: {
     paddingHorizontal: spacing.lg,

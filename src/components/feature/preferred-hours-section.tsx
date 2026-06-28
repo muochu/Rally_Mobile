@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
+import { Check } from 'lucide-react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-
 import type { PreferredHours } from '@/hooks/use-profile';
 import { colors } from '@/theme/colors';
 import { radii, spacing } from '@/theme/spacing';
@@ -34,10 +34,21 @@ export function PreferredHoursSection({
             accessibilityRole="checkbox"
             accessibilityState={{ checked: active }}
           >
-            <Text style={[styles.label, active && styles.labelActive]}>
-              {label}
-            </Text>
-            <Text style={[styles.sub, active && styles.subActive]}>{sub}</Text>
+            <View style={styles.chipText}>
+              <Text style={[styles.label, active && styles.labelActive]}>
+                {label}
+              </Text>
+              <Text style={[styles.sub, active && styles.subActive]}>
+                {sub}
+              </Text>
+            </View>
+            {active && (
+              <Check
+                size={16}
+                color={colors.accent.primary}
+                strokeWidth={2.5}
+              />
+            )}
           </Pressable>
         );
       })}
@@ -54,7 +65,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+    paddingVertical: spacing.md + 2,
     borderRadius: radii.md,
     borderWidth: 1.5,
     borderColor: colors.border.primary,
@@ -63,6 +74,9 @@ const styles = StyleSheet.create({
   chipActive: {
     borderColor: colors.accent.primary,
     backgroundColor: colors.accent.soft,
+  },
+  chipText: {
+    gap: 2,
   },
   label: {
     fontSize: 15,

@@ -1,7 +1,7 @@
-import type { ReactElement } from 'react';
-import { useState } from 'react';
 import { BlurView } from 'expo-blur';
 import { X } from 'lucide-react-native';
+import type { ReactElement } from 'react';
+import { useState } from 'react';
 import {
   ActivityIndicator,
   Linking,
@@ -11,8 +11,9 @@ import {
   Text,
   View,
 } from 'react-native';
-import type { Court, TrafficState } from '@/hooks/use-courts';
-import { getTrafficState, setHomeCourt } from '@/hooks/use-courts';
+
+import type { Court } from '@/hooks/use-courts';
+import { setHomeCourt } from '@/hooks/use-courts';
 import { colors } from '@/theme/colors';
 import { radii, spacing } from '@/theme/spacing';
 
@@ -22,18 +23,6 @@ type Props = {
   userId: string;
   onClose: () => void;
   onHomeCourtSet: () => void;
-};
-
-const TRAFFIC_LABEL: Record<TrafficState, string> = {
-  open: 'Open',
-  filling: 'Filling up',
-  full: 'Busy',
-};
-
-const TRAFFIC_COLOR: Record<TrafficState, string> = {
-  open: colors.status.open,
-  filling: colors.status.filling,
-  full: colors.status.full,
 };
 
 export function CourtDetailSheet({
@@ -57,9 +46,6 @@ export function CourtDetailSheet({
     }
   };
 
-  const traffic = court
-    ? getTrafficState(court.upcoming_matches_count)
-    : 'open';
   const isHome = court?.id === homeCourt;
 
   const feeLabel =
@@ -100,20 +86,6 @@ export function CourtDetailSheet({
         )}
 
         <View style={styles.chips}>
-          <View
-            style={[
-              styles.chip,
-              { backgroundColor: TRAFFIC_COLOR[traffic] + '22' },
-            ]}
-          >
-            <View
-              style={[styles.dot, { backgroundColor: TRAFFIC_COLOR[traffic] }]}
-            />
-            <Text style={[styles.chipText, { color: TRAFFIC_COLOR[traffic] }]}>
-              {TRAFFIC_LABEL[traffic]}
-            </Text>
-          </View>
-
           {surfaceLabel != null && (
             <View style={styles.chip}>
               <Text style={styles.chipText}>{surfaceLabel}</Text>
@@ -239,11 +211,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     borderRadius: radii.full,
     backgroundColor: colors.background.secondary,
-  },
-  dot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
   },
   chipText: {
     fontSize: 13,

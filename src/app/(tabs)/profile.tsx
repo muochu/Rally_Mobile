@@ -1,11 +1,10 @@
 import { useQueryClient } from '@tanstack/react-query';
-import * as ImagePicker from 'expo-image-picker';
+import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
-import { useRouter } from 'expo-router';
 import type { ReactElement } from 'react';
 import { useCallback, useEffect, useState } from 'react';
 import {
-  Alert,
+  ActivityIndicator,
   Linking,
   ScrollView,
   StyleSheet,
@@ -19,11 +18,12 @@ import { PreferredHoursSection } from '@/components/feature/preferred-hours-sect
 import { ProfileEditModal } from '@/components/feature/profile-edit-modal';
 import { ProfileHeader } from '@/components/feature/profile-header';
 import { ProfileSettingsSection } from '@/components/feature/profile-settings-section';
+import { useAccountActions } from '@/hooks/use-account-actions';
 import { useAuth } from '@/hooks/use-auth';
+import { useAvatarUpload } from '@/hooks/use-avatar-upload';
 import type { PreferredHours } from '@/hooks/use-profile';
 import { useProfile, useUpdateProfile } from '@/hooks/use-profile';
 import { haptics } from '@/lib/haptics';
-import { supabase } from '@/lib/supabase';
 import { colors } from '@/theme/colors';
 import { spacing } from '@/theme/spacing';
 
@@ -32,15 +32,19 @@ type HourKey = keyof PreferredHours;
 export default function ProfileScreen(): ReactElement {
   const { session } = useAuth();
   const userId = session?.user.id ?? '';
-  const router = useRouter();
   const queryClient = useQueryClient();
 
   const { profile, isLoading } = useProfile(userId);
   const updateProfile = useUpdateProfile(userId);
 
   const [editOpen, setEditOpen] = useState(false);
-  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [notifGranted, setNotifGranted] = useState(false);
+
+  const { uploadingAvatar, handleAvatarPress } = useAvatarUpload(
+    userId,
+    updateProfile,
+  );
+  const { handleSignOut, handleDeleteAccount } = useAccountActions();
 
   useEffect((): void => {
     void Notifications.getPermissionsAsync().then(({ status }) => {
@@ -58,46 +62,6 @@ export default function ProfileScreen(): ReactElement {
     }
   }, [notifGranted]);
 
-  const handleAvatarPress = useCallback(async (): Promise<void> => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      await Linking.openSettings();
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
-    if (result.canceled || !result.assets[0]) return;
-
-    setUploadingAvatar(true);
-    try {
-      const asset = result.assets[0];
-      const ext = asset.uri.split('.').pop() ?? 'jpg';
-      const path = `${userId}/avatar.${ext}`;
-      const res = await fetch(asset.uri);
-      const blob = await res.blob();
-      const arrayBuffer = await new Response(blob).arrayBuffer();
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(path, arrayBuffer, {
-          contentType: asset.mimeType ?? 'image/jpeg',
-          upsert: true,
-        });
-      if (uploadError) throw uploadError;
-      const { data: urlData } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(path);
-      await updateProfile({ avatar_url: urlData.publicUrl });
-    } catch {
-      Alert.alert('Upload failed', 'Could not update your photo. Try again.');
-    } finally {
-      setUploadingAvatar(false);
-    }
-  }, [userId, updateProfile]);
-
   const handleToggleHours = useCallback(
     async (key: HourKey): Promise<void> => {
       if (!profile) return;
@@ -114,76 +78,12 @@ export default function ProfileScreen(): ReactElement {
     [profile, updateProfile],
   );
 
-  const handleSignOut = useCallback((): void => {
-    Alert.alert('Sign out', 'Are you sure you want to sign out?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Sign out',
-        style: 'destructive',
-        onPress: async (): Promise<void> => {
-          await supabase.auth.signOut();
-          queryClient.clear();
-          router.replace('/' as Parameters<typeof router.replace>[0]);
-        },
-      },
-    ]);
-  }, [queryClient, router]);
-
-  const handleDeleteAccount = useCallback((): void => {
-    Alert.alert(
-      'Delete account',
-      'This permanently deletes your account, all matches, and all data. This cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: (): void => {
-            Alert.alert(
-              'Are you sure?',
-              'Final confirmation — this action is irreversible.',
-              [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                  text: 'Delete forever',
-                  style: 'destructive',
-                  onPress: async (): Promise<void> => {
-                    const {
-                      data: { session },
-                    } = await supabase.auth.getSession();
-                    if (!session) return;
-                    const { error } = await supabase.functions.invoke(
-                      'delete-account',
-                      {
-                        headers: {
-                          Authorization: `Bearer ${session.access_token}`,
-                        },
-                      },
-                    );
-                    if (error) {
-                      Alert.alert(
-                        'Error',
-                        'Could not delete account. Please try again.',
-                      );
-                      return;
-                    }
-                    await supabase.auth.signOut();
-                    queryClient.clear();
-                    router.replace('/' as Parameters<typeof router.replace>[0]);
-                  },
-                },
-              ],
-            );
-          },
-        },
-      ],
-    );
-  }, [queryClient, router]);
-
   if (isLoading || !profile) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={styles.loadingState} />
+        <View style={styles.loadingState}>
+          <ActivityIndicator size="large" color={colors.accent.primary} />
+        </View>
       </SafeAreaView>
     );
   }
@@ -247,7 +147,9 @@ export default function ProfileScreen(): ReactElement {
           onDeleteAccount={handleDeleteAccount}
         />
 
-        <Text style={styles.version}>Rally v1.0.0</Text>
+        <Text style={styles.version}>
+          Rally v{Constants.expoConfig?.version ?? '1.0.0'}
+        </Text>
       </ScrollView>
 
       <ProfileEditModal
@@ -272,6 +174,8 @@ const styles = StyleSheet.create({
   },
   loadingState: {
     flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   scroll: {
     flex: 1,
@@ -304,3 +208,5 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.lg,
   },
 });
+
+export { TabErrorFallback as ErrorBoundary } from '@/components/ui/tab-error-fallback';

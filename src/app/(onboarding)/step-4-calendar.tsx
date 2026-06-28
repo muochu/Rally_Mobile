@@ -33,7 +33,7 @@ export default function Step4CalendarScreen(): ReactElement {
   const handleConnect = async (): Promise<void> => {
     setIsRequesting(true);
     try {
-      const { status } = await Calendar.requestCalendarPermissionsAsync();
+      const { status } = await Calendar.requestCalendarPermissions();
       await requestAndAdvance(status === 'granted' ? 'granted' : 'denied');
     } catch (err) {
       reportError(err, { context: 'calendarPermission' });
@@ -44,7 +44,7 @@ export default function Step4CalendarScreen(): ReactElement {
   };
 
   const handleSkip = (): void => {
-    requestAndAdvance('skipped');
+    void requestAndAdvance('skipped');
   };
 
   return (

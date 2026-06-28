@@ -1,6 +1,6 @@
+import { BlurView } from 'expo-blur';
 import type { ReactElement } from 'react';
 import { useRef } from 'react';
-import { BlurView } from 'expo-blur';
 import {
   Animated,
   Modal,
@@ -12,11 +12,13 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
 import { AvatarLarge } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import type { FreeSlot } from '@/lib/overlap';
 import { colors } from '@/theme/colors';
 import { radii, spacing } from '@/theme/spacing';
+
 import type { NearbyPlayer } from './player-card';
 
 interface PlayerProfileSheetProps {
@@ -41,6 +43,20 @@ const MONTH_NAMES = [
   'Nov',
   'Dec',
 ];
+
+const firstSlotPerDay = (slots: FreeSlot[], maxDays = 3): FreeSlot[] => {
+  const seen = new Set<string>();
+  const result: FreeSlot[] = [];
+  for (const slot of slots) {
+    const key = `${slot.start.getFullYear()}-${slot.start.getMonth()}-${slot.start.getDate()}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      result.push(slot);
+      if (result.length >= maxDays) break;
+    }
+  }
+  return result;
+};
 
 const formatSlot = (slot: FreeSlot): string => {
   const { start, end } = slot;
@@ -156,7 +172,7 @@ export function PlayerProfileSheet({
                         ? `${player.overlap_count} day${player.overlap_count !== 1 ? 's' : ''} you could play`
                         : 'No mutual time in the next 14 days'}
                     </Text>
-                    {mutualSlots.slice(0, 3).map((slot, i) => (
+                    {firstSlotPerDay(mutualSlots).map((slot, i) => (
                       <View key={i} style={styles.slotRow}>
                         <View style={styles.slotDot} />
                         <Text style={styles.slotText}>{formatSlot(slot)}</Text>

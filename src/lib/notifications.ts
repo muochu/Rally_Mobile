@@ -1,6 +1,6 @@
+import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
-
 import { supabase } from '@/lib/supabase';
 
 // Called explicitly from _layout.tsx after the React tree mounts.
@@ -36,9 +36,19 @@ export const registerForPushNotifications = async (
 
   if (finalStatus !== 'granted') return;
 
-  const { data: token } = await Notifications.getExpoPushTokenAsync();
-  await supabase
-    .from('profiles')
-    .update({ push_token: token })
-    .eq('id', userId);
+  const projectId = Constants.expoConfig?.extra?.eas?.projectId as
+    | string
+    | undefined;
+  try {
+    const { data: token } = await Notifications.getExpoPushTokenAsync({
+      projectId,
+    });
+    if (!token) return;
+    await supabase
+      .from('profiles')
+      .update({ push_token: token })
+      .eq('id', userId);
+  } catch {
+    // push token unavailable — app remains functional without notifications
+  }
 };

@@ -2,7 +2,7 @@ import { useMutation } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeft } from 'lucide-react-native';
 import type { ReactElement } from 'react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Pressable,
@@ -37,7 +37,7 @@ import { supabase } from '@/lib/supabase';
 import { colors } from '@/theme/colors';
 import { radii, spacing } from '@/theme/spacing';
 
-export default function ConfirmScreen(): ReactElement {
+export default function ConfirmScreen(): ReactElement | null {
   const router = useRouter();
   const { opponentId, slotId, name, requestId, requesterId } =
     useLocalSearchParams<{
@@ -49,12 +49,12 @@ export default function ConfirmScreen(): ReactElement {
     }>();
 
   const opponentName = name ?? 'Player';
-  const { start, end } = decodeSlotId(slotId);
+  const slot = useMemo(() => decodeSlotId(slotId ?? ''), [slotId]);
   const isAccepting = Boolean(requestId);
 
   const [opponentUtr, setOpponentUtr] = useState<number | null>(null);
-  const [calendarDeniedBanner, setCalendarDeniedBanner] = useState(false);
   const [isBooked, setIsBooked] = useState(false);
+  const [pendingNav, setPendingNav] = useState<string | null>(null);
 
   const bookedScale = useSharedValue(1);
   const bookedAnimStyle = useAnimatedStyle(() => ({
@@ -72,23 +72,32 @@ export default function ConfirmScreen(): ReactElement {
       });
   }, [opponentId]);
 
+  useEffect(() => {
+    if (!pendingNav) return;
+    const timer = setTimeout(() => {
+      router.replace(pendingNav as Parameters<typeof router.replace>[0]);
+    }, 700);
+    return (): void => clearTimeout(timer);
+  }, [pendingNav, router]);
+
   const mutationFn = (): Promise<{
     matchId?: string;
     requestId?: string;
     calendarDenied?: boolean;
   }> => {
+    if (!slot) throw new Error('Invalid slot');
     if (isAccepting && requestId && requesterId) {
       return acceptScheduleRequest({
         requestId,
         requesterId,
-        slotStart: start,
-        slotEnd: end,
+        slotStart: slot.start,
+        slotEnd: slot.end,
       });
     }
     return sendScheduleRequest({
       recipientId: opponentId,
-      proposedStart: start,
-      proposedEnd: end,
+      proposedStart: slot.start,
+      proposedEnd: slot.end,
     });
   };
 
@@ -103,22 +112,13 @@ export default function ConfirmScreen(): ReactElement {
       );
       const encodedName = encodeURIComponent(opponentName);
       if (isAccepting && 'matchId' in result && result.matchId) {
-        if (result.calendarDenied) setCalendarDeniedBanner(true);
-        setTimeout(() => {
-          router.replace(
-            `/match/booked/${result.matchId}?slotId=${slotId}&name=${encodedName}&calDenied=${result.calendarDenied ?? false}` as Parameters<
-              typeof router.replace
-            >[0],
-          );
-        }, 700);
+        setPendingNav(
+          `/match/booked/${result.matchId}?slotId=${slotId}&name=${encodedName}&calDenied=${result.calendarDenied ?? false}`,
+        );
       } else {
-        setTimeout(() => {
-          router.replace(
-            `/match/booked/requested?slotId=${slotId}&name=${encodedName}&mode=requested` as Parameters<
-              typeof router.replace
-            >[0],
-          );
-        }, 700);
+        setPendingNav(
+          `/match/booked/requested?slotId=${slotId}&name=${encodedName}&mode=requested`,
+        );
       }
     },
     onError: (err) => {
@@ -128,7 +128,18 @@ export default function ConfirmScreen(): ReactElement {
           {
             text: 'Pick another time',
             onPress: (): void => {
-              router.back();
+              // When accepting a proposed slot, send the acceptor to the picker
+              // so they can choose a different time rather than returning to the
+              // matches tab where there is no path to a new slot.
+              if (isAccepting && requestId && requesterId) {
+                router.replace(
+                  `/match/picker/${opponentId}?name=${encodeURIComponent(opponentName)}&requestId=${requestId}&requesterId=${requesterId}` as Parameters<
+                    typeof router.replace
+                  >[0],
+                );
+              } else {
+                router.back();
+              }
             },
           },
         ]);
@@ -141,6 +152,8 @@ export default function ConfirmScreen(): ReactElement {
   }, [mutate]);
 
   const networkError = error && !(error instanceof UserFacingError);
+
+  if (!slot) return null;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -164,28 +177,21 @@ export default function ConfirmScreen(): ReactElement {
         showsVerticalScrollIndicator={false}
       >
         <MatchSummaryCard
-          start={start}
-          end={end}
+          start={slot.start}
+          end={slot.end}
           opponentName={opponentName}
           opponentUtr={opponentUtr}
         />
 
-        {/* Calendar event preview */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Added to your calendar</Text>
-          <CalendarEventPreview
-            title="Tennis match – Rally"
-            dateLabel={formatSlotDate(start)}
-            timeRange={formatTimeRange(start, end)}
-          />
-        </View>
-
-        {/* Calendar denied banner (only shows if write was previously denied) */}
-        {calendarDeniedBanner && (
-          <View style={styles.bannerWarn}>
-            <Text style={styles.bannerText}>
-              Calendar access denied — add this event manually.
-            </Text>
+        {/* Calendar event preview — only shown when accepting, not when sending a request */}
+        {isAccepting && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Your calendar event</Text>
+            <CalendarEventPreview
+              title="Tennis match – Rally"
+              dateLabel={formatSlotDate(slot.start)}
+              timeRange={formatTimeRange(slot.start, slot.end)}
+            />
           </View>
         )}
 
@@ -193,7 +199,8 @@ export default function ConfirmScreen(): ReactElement {
         {networkError && (
           <View style={styles.bannerError}>
             <Text style={styles.bannerText}>
-              Could not book the match. Check your connection.
+              {error?.message ??
+                'Could not book the match. Check your connection.'}
             </Text>
             <Pressable
               onPress={() => {
@@ -261,12 +268,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: colors.text.primary,
-  },
-  bannerWarn: {
-    backgroundColor: '#FEF3C7',
-    borderRadius: radii.md,
-    padding: spacing.md,
-    gap: spacing.xs,
   },
   bannerError: {
     backgroundColor: '#FEE2E2',

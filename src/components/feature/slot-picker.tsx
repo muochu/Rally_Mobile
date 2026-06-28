@@ -1,7 +1,10 @@
 import type { ReactElement } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-
-import { formatSlotDate, formatTimeRange } from '@/lib/format-slot';
+import {
+  formatDuration,
+  formatSlotDate,
+  formatTimeRange,
+} from '@/lib/format-slot';
 import { haptics } from '@/lib/haptics';
 import type { FreeSlot } from '@/lib/overlap';
 import { colors } from '@/theme/colors';
@@ -35,7 +38,7 @@ export function SlotPicker({
       <View style={styles.emptyState}>
         <Text style={styles.emptyTitle}>
           {noSlotsIn7
-            ? 'No mutual times this week'
+            ? 'No mutual times in the next 7 days'
             : 'No mutual times in the next 14 days'}
         </Text>
         <Text style={styles.emptyBody}>
@@ -99,7 +102,7 @@ export function SlotPicker({
                       isSelected && styles.slotDurationSelected,
                     ]}
                   >
-                    2h
+                    {formatDuration(slot.start, slot.end)}
                   </Text>
                   <View
                     style={[

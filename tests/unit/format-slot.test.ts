@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+
 import {
   decodeSlotId,
   encodeSlotId,
@@ -86,8 +87,8 @@ describe('encodeSlotId / decodeSlotId', () => {
     const end = new Date('2024-06-15T12:00:00');
     const encoded = encodeSlotId(start, end);
     const decoded = decodeSlotId(encoded);
-    expect(decoded.start.getTime()).toBe(start.getTime());
-    expect(decoded.end.getTime()).toBe(end.getTime());
+    expect(decoded?.start.getTime()).toBe(start.getTime());
+    expect(decoded?.end.getTime()).toBe(end.getTime());
   });
 
   it('produces underscore-separated timestamp string', () => {

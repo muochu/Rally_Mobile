@@ -1,9 +1,12 @@
 import type { ReactElement } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-
 import { PressableScale } from '@/components/ui/pressable-scale';
 import type { MatchWithOpponent, PendingRequest } from '@/hooks/use-matches';
-import { formatSlotDate, formatTimeRange } from '@/lib/format-slot';
+import {
+  formatSlotDate,
+  formatSlotFull,
+  formatTimeRange,
+} from '@/lib/format-slot';
 import { colors } from '@/theme/colors';
 import { radii, spacing } from '@/theme/spacing';
 
@@ -167,6 +170,10 @@ export const MatchCard = (props: MatchCardProps): ReactElement => {
 
   if (props.variant === 'pending-incoming') {
     const { request, onBook, onDecline } = props;
+    const msLeft = request.expiresAt.getTime() - Date.now();
+    const hoursLeft = Math.floor(msLeft / 3_600_000);
+    const expiryLabel = hoursLeft >= 1 ? `${hoursLeft}h left` : 'Expiring';
+    const isUrgent = hoursLeft < 6;
     return (
       <View style={styles.card}>
         <View
@@ -175,9 +182,17 @@ export const MatchCard = (props: MatchCardProps): ReactElement => {
         <View style={styles.body}>
           <View style={styles.headerRow}>
             <Text style={styles.dateLabel}>Schedule request</Text>
-            <Badge label="New" color={colors.status.warning} />
+            <Badge
+              label={expiryLabel}
+              color={isUrgent ? colors.status.error : colors.status.warning}
+            />
           </View>
           <Text style={styles.opponentName}>{request.opponentName}</Text>
+          {request.proposedStart && request.proposedEnd ? (
+            <Text style={styles.timeRange}>
+              {formatSlotFull(request.proposedStart, request.proposedEnd)}
+            </Text>
+          ) : null}
           {request.message ? (
             <Text style={styles.message}>"{request.message}"</Text>
           ) : null}
@@ -202,7 +217,13 @@ export const MatchCard = (props: MatchCardProps): ReactElement => {
           <Badge label="Pending" color={colors.text.tertiary} />
         </View>
         <Text style={styles.opponentName}>{request.opponentName}</Text>
-        <Text style={styles.timeRange}>Waiting for response</Text>
+        {request.proposedStart && request.proposedEnd ? (
+          <Text style={styles.timeRange}>
+            {formatSlotFull(request.proposedStart, request.proposedEnd)}
+          </Text>
+        ) : (
+          <Text style={styles.timeRange}>Waiting for response</Text>
+        )}
         <View style={styles.actions}>
           <ActionButton
             label="Cancel request"

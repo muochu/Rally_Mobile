@@ -7,7 +7,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import Animated from 'react-native-reanimated';
+import Animated, { type AnimatedStyle } from 'react-native-reanimated';
 
 import { Button } from '@/components/ui/button';
 import { colors } from '@/theme/colors';
@@ -15,7 +15,7 @@ import { radii, spacing } from '@/theme/spacing';
 
 type Props = {
   isBooked: boolean;
-  bookedAnimStyle: StyleProp<ViewStyle>;
+  bookedAnimStyle: StyleProp<AnimatedStyle<ViewStyle>>;
   isPending: boolean;
   isAccepting: boolean;
   onConfirm: () => void;
@@ -47,7 +47,9 @@ export function ConfirmFooter({
       <View style={styles.footer}>
         <View style={styles.loadingRow}>
           <ActivityIndicator color={colors.accent.primary} />
-          <Text style={styles.loadingText}>Booking match…</Text>
+          <Text style={styles.loadingText}>
+            {isAccepting ? 'Booking match…' : 'Sending request…'}
+          </Text>
         </View>
       </View>
     );

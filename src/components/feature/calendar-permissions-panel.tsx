@@ -17,6 +17,7 @@ import {
   disconnectGoogleCalendar,
   isGoogleCalendarConnected,
 } from '@/lib/calendar/google';
+import { reportError, UserFacingError } from '@/lib/errors';
 import { supabase } from '@/lib/supabase';
 import { colors } from '@/theme/colors';
 import { radii, spacing } from '@/theme/spacing';
@@ -26,38 +27,57 @@ type Props = {
   onSynced: () => void;
 };
 
+const formatSynced = (d: Date): string => {
+  const diffMin = Math.round((Date.now() - d.getTime()) / 60_000);
+  if (diffMin < 1) return 'Just now';
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffH = Math.floor(diffMin / 60);
+  if (diffH < 24) return `${diffH}h ago`;
+  return `${Math.floor(diffH / 24)}d ago`;
+};
+
+const fetchLastSynced = async (
+  userId: string,
+  source: 'apple' | 'google',
+): Promise<Date | null> => {
+  const { data } = await supabase
+    .from('availability_blocks')
+    .select('synced_at')
+    .eq('user_id', userId)
+    .eq('source', source)
+    .order('synced_at', { ascending: false })
+    .limit(1)
+    .single();
+  return data?.synced_at ? new Date(data.synced_at) : null;
+};
+
 export function CalendarPermissionsPanel({
   userId,
   onSynced,
 }: Props): ReactElement {
   const [appleGranted, setAppleGranted] = useState(false);
   const [googleConnected, setGoogleConnected] = useState(false);
-  const [lastSynced, setLastSynced] = useState<Date | null>(null);
+  const [appleLastSynced, setAppleLastSynced] = useState<Date | null>(null);
+  const [googleLastSynced, setGoogleLastSynced] = useState<Date | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [connectingGoogle, setConnectingGoogle] = useState(false);
 
   useEffect(() => {
-    void Calendar.getCalendarPermissionsAsync().then(({ status }) => {
+    void Calendar.getCalendarPermissions().then(({ status }) => {
       setAppleGranted(status === 'granted');
     });
     void isGoogleCalendarConnected().then(setGoogleConnected);
-    void supabase
-      .from('availability_blocks')
-      .select('synced_at')
-      .eq('user_id', userId)
-      .order('synced_at', { ascending: false })
-      .limit(1)
-      .single()
-      .then(({ data }) => {
-        if (data?.synced_at) setLastSynced(new Date(data.synced_at));
-      });
+    void fetchLastSynced(userId, 'apple').then(setAppleLastSynced);
+    void fetchLastSynced(userId, 'google').then(setGoogleLastSynced);
   }, [userId]);
 
   const handleSync = async (): Promise<void> => {
     setSyncing(true);
     try {
       await syncAvailability();
-      setLastSynced(new Date());
+      const now = new Date();
+      if (appleGranted) setAppleLastSynced(now);
+      if (googleConnected) setGoogleLastSynced(now);
       onSynced();
     } finally {
       setSyncing(false);
@@ -66,14 +86,34 @@ export function CalendarPermissionsPanel({
 
   const handleConnectGoogle = async (): Promise<void> => {
     setConnectingGoogle(true);
+    let connected = false;
     try {
-      const ok = await connectGoogleCalendar();
-      if (ok) {
-        setGoogleConnected(true);
-        await handleSync();
+      connected = await connectGoogleCalendar();
+      if (connected) setGoogleConnected(true);
+    } catch (err) {
+      if (err instanceof UserFacingError) {
+        Alert.alert('Connection failed', err.message);
+      } else {
+        reportError(err, { context: 'handleConnectGoogle' });
+        Alert.alert(
+          'Connection failed',
+          'Could not connect to Google Calendar. Please try again.',
+        );
       }
     } finally {
       setConnectingGoogle(false);
+    }
+
+    if (connected) {
+      try {
+        await handleSync();
+      } catch (err) {
+        reportError(err, { context: 'handleConnectGoogle-sync' });
+        Alert.alert(
+          'Connected, but sync failed',
+          'Google Calendar is connected, but we could not sync your availability yet. Pull to refresh to try again.',
+        );
+      }
     }
   };
 
@@ -89,20 +129,25 @@ export function CalendarPermissionsPanel({
           onPress: async (): Promise<void> => {
             await disconnectGoogleCalendar();
             setGoogleConnected(false);
+            setGoogleLastSynced(null);
+            onSynced();
           },
         },
       ],
     );
   };
 
-  const formatSynced = (d: Date): string => {
-    const diffMin = Math.round((Date.now() - d.getTime()) / 60_000);
-    if (diffMin < 1) return 'Just now';
-    if (diffMin < 60) return `${diffMin}m ago`;
-    const diffH = Math.floor(diffMin / 60);
-    if (diffH < 24) return `${diffH}h ago`;
-    return `${Math.floor(diffH / 24)}d ago`;
-  };
+  const appleStatus = appleGranted
+    ? appleLastSynced
+      ? `Synced ${formatSynced(appleLastSynced)}`
+      : 'Connected'
+    : 'Not connected';
+
+  const googleStatus = googleConnected
+    ? googleLastSynced
+      ? `Synced ${formatSynced(googleLastSynced)}`
+      : 'Connected'
+    : 'Not connected';
 
   return (
     <View style={styles.panel}>
@@ -117,13 +162,7 @@ export function CalendarPermissionsPanel({
         </View>
         <View style={styles.calInfo}>
           <Text style={styles.calName}>Apple Calendar</Text>
-          <Text style={styles.calStatus}>
-            {appleGranted
-              ? lastSynced
-                ? `Synced ${formatSynced(lastSynced)}`
-                : 'Connected'
-              : 'Not connected'}
-          </Text>
+          <Text style={styles.calStatus}>{appleStatus}</Text>
         </View>
         {appleGranted && (
           <Pressable
@@ -131,6 +170,8 @@ export function CalendarPermissionsPanel({
             onPress={handleSync}
             disabled={syncing}
             hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Sync calendars"
           >
             {syncing ? (
               <ActivityIndicator size="small" color={colors.accent.primary} />
@@ -162,31 +203,41 @@ export function CalendarPermissionsPanel({
         </View>
         <View style={styles.calInfo}>
           <Text style={styles.calName}>Google Calendar</Text>
-          <Text style={styles.calStatus}>
-            {googleConnected ? 'Connected' : 'Not connected'}
-          </Text>
+          <Text style={styles.calStatus}>{googleStatus}</Text>
         </View>
-        <Pressable
-          style={styles.actionBtn}
-          onPress={
-            googleConnected ? handleDisconnectGoogle : handleConnectGoogle
-          }
-          disabled={connectingGoogle}
-          hitSlop={8}
-        >
-          {connectingGoogle ? (
+        {googleConnected && syncing ? (
+          <View style={styles.actionBtn}>
             <ActivityIndicator size="small" color={colors.accent.primary} />
-          ) : (
-            <Text
-              style={[
-                styles.actionText,
-                googleConnected && styles.actionTextDestructive,
-              ]}
-            >
-              {googleConnected ? 'Disconnect' : 'Connect'}
-            </Text>
-          )}
-        </Pressable>
+          </View>
+        ) : (
+          <Pressable
+            style={styles.actionBtn}
+            onPress={
+              googleConnected ? handleDisconnectGoogle : handleConnectGoogle
+            }
+            disabled={connectingGoogle || syncing}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={
+              googleConnected
+                ? 'Disconnect Google Calendar'
+                : 'Connect Google Calendar'
+            }
+          >
+            {connectingGoogle ? (
+              <ActivityIndicator size="small" color={colors.accent.primary} />
+            ) : (
+              <Text
+                style={[
+                  styles.actionText,
+                  googleConnected && styles.actionTextDestructive,
+                ]}
+              >
+                {googleConnected ? 'Disconnect' : 'Connect'}
+              </Text>
+            )}
+          </Pressable>
+        )}
       </View>
     </View>
   );

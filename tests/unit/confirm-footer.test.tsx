@@ -43,10 +43,18 @@ describe('ConfirmFooter', () => {
     expect(onCancel).toHaveBeenCalledTimes(1);
   });
 
-  it('shows loading indicator when isPending is true', () => {
+  it('shows "Sending request…" when isPending and not accepting', () => {
     render(<ConfirmFooter {...BASE_PROPS} isPending={true} />);
-    expect(screen.getByText('Booking match…')).toBeTruthy();
+    expect(screen.getByText('Sending request…')).toBeTruthy();
     expect(screen.queryByText('Send match request')).toBeNull();
+  });
+
+  it('shows "Booking match…" when isPending and accepting', () => {
+    render(
+      <ConfirmFooter {...BASE_PROPS} isPending={true} isAccepting={true} />,
+    );
+    expect(screen.getByText('Booking match…')).toBeTruthy();
+    expect(screen.queryByText('Accept and book')).toBeNull();
   });
 
   it('shows "Sent!" when isBooked and not accepting', () => {

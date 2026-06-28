@@ -8,6 +8,7 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
+
 import { Avatar } from '@/components/ui/avatar';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { colors } from '@/theme/colors';
@@ -92,7 +93,7 @@ export function PlayerCard({
 
         <View style={styles.overlap}>
           <Text style={styles.overlapCount}>{player.overlap_count}</Text>
-          <Text style={styles.overlapLabel}>days free</Text>
+          <Text style={styles.overlapLabel}>days to play</Text>
         </View>
       </PressableScale>
     </Animated.View>

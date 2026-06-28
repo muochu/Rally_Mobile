@@ -16,7 +16,6 @@ import { z } from 'zod';
 import { CourtDetailSheet } from '@/components/feature/court-detail-sheet';
 import { CourtMarker } from '@/components/feature/court-marker';
 import { CourtsBottomDrawer } from '@/components/feature/courts-bottom-drawer';
-import type { GeocodeSuggestion } from '@/components/feature/courts-search-overlay';
 import { CourtsSearchOverlay } from '@/components/feature/courts-search-overlay';
 import { useAuth } from '@/hooks/use-auth';
 import {
@@ -26,7 +25,8 @@ import {
   useCourtDrawer,
 } from '@/hooks/use-court-drawer';
 import type { Bounds, Court } from '@/hooks/use-courts';
-import { getTrafficState, haversineKm, useCourts } from '@/hooks/use-courts';
+import { haversineKm, useCourts } from '@/hooks/use-courts';
+import { useCourtsSearch } from '@/hooks/use-courts-search';
 import { env } from '@/lib/env';
 import { supabase } from '@/lib/supabase';
 import { colors } from '@/theme/colors';
@@ -36,16 +36,6 @@ MapboxGL.setAccessToken(env.EXPO_PUBLIC_MAPBOX_TOKEN);
 
 const DEFAULT_COORDS: [number, number] = [-123.1207, 49.2827];
 const DEFAULT_ZOOM = 13;
-const GEOCODE_URL = 'https://api.mapbox.com/geocoding/v5/mapbox.places';
-
-const GeocodeFeatureSchema = z.object({
-  id: z.string(),
-  place_name: z.string(),
-  center: z.tuple([z.number(), z.number()]),
-});
-const GeocodeResponseSchema = z.object({
-  features: z.array(GeocodeFeatureSchema),
-});
 
 export default function CourtsScreen(): ReactElement {
   const { session } = useAuth();
@@ -56,10 +46,6 @@ export default function CourtsScreen(): ReactElement {
   const [bounds, setBounds] = useState<Bounds | null>(null);
   const [selectedCourt, setSelectedCourt] = useState<Court | null>(null);
   const [homeCourt, setHomeCourtState] = useState<string | null>(null);
-  const [searchText, setSearchText] = useState('');
-  const [suggestions, setSuggestions] = useState<GeocodeSuggestion[]>([]);
-  const [searching, setSearching] = useState(false);
-  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { drawerY, panHandlers, snapTo } = useCourtDrawer();
   const { courts, isLoading } = useCourts(bounds);
@@ -114,51 +100,16 @@ export default function CourtsScreen(): ReactElement {
     );
   }, [courts, mapCenter]);
 
-  const handleSearchChange = useCallback(
-    (text: string): void => {
-      setSearchText(text);
-      if (searchTimer.current) clearTimeout(searchTimer.current);
-      if (text.length < 2) {
-        setSuggestions([]);
-        return;
-      }
-      searchTimer.current = setTimeout((): void => {
-        setSearching(true);
-        const [lng, lat] = mapCenter;
-        const url = `${GEOCODE_URL}/${encodeURIComponent(text)}.json?access_token=${env.EXPO_PUBLIC_MAPBOX_TOKEN}&proximity=${lng},${lat}&types=place,address,poi&limit=5`;
-        fetch(url)
-          .then((res) => res.json())
-          .then((json) => {
-            const result = GeocodeResponseSchema.safeParse(json);
-            if (!result.success) return;
-            setSuggestions(
-              result.data.features.map((f) => ({
-                id: f.id,
-                place_name: f.place_name,
-                center: f.center,
-              })),
-            );
-          })
-          .catch(() => {})
-          .finally((): void => setSearching(false));
-      }, 350);
-    },
-    [mapCenter],
+  const {
+    searchText,
+    suggestions,
+    searching,
+    handleSearchChange,
+    handleSelectSuggestion,
+    handleClearSearch,
+  } = useCourtsSearch(mapCenter, (center) =>
+    cameraRef.current?.flyTo(center, 600),
   );
-
-  const handleSelectSuggestion = useCallback(
-    (suggestion: GeocodeSuggestion): void => {
-      setSearchText('');
-      setSuggestions([]);
-      cameraRef.current?.flyTo(suggestion.center, 600);
-    },
-    [],
-  );
-
-  const handleClearSearch = useCallback((): void => {
-    setSearchText('');
-    setSuggestions([]);
-  }, []);
 
   const handleLocateMe = useCallback((): void => {
     Location.getForegroundPermissionsAsync().then(({ status }) => {
@@ -228,10 +179,7 @@ export default function CourtsScreen(): ReactElement {
             coordinate={[court.longitude, court.latitude]}
             onSelected={(): void => handleCourtSelect(court)}
           >
-            <CourtMarker
-              traffic={getTrafficState(court.upcoming_matches_count)}
-              selected={selectedCourt?.id === court.id}
-            />
+            <CourtMarker selected={selectedCourt?.id === court.id} />
           </MapboxGL.PointAnnotation>
         ))}
       </MapboxGL.MapView>
@@ -331,3 +279,5 @@ const styles = StyleSheet.create({
     zIndex: 5,
   },
 });
+
+export { TabErrorFallback as ErrorBoundary } from '@/components/ui/tab-error-fallback';

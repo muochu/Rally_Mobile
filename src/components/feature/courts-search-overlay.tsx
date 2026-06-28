@@ -1,5 +1,5 @@
-import { Search, X } from 'lucide-react-native';
 import type { ReactElement } from 'react';
+import { Search, X } from 'lucide-react-native';
 import {
   ActivityIndicator,
   Pressable,
@@ -8,7 +8,6 @@ import {
   TextInput,
   View,
 } from 'react-native';
-
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { colors } from '@/theme/colors';
 import { radii, spacing } from '@/theme/spacing';
@@ -65,10 +64,13 @@ export function CourtsSearchOverlay({
 
       {suggestions.length > 0 && (
         <View style={[styles.suggestionList, { top: suggestionTop }]}>
-          {suggestions.map((s) => (
+          {suggestions.map((s, i) => (
             <PressableScale
               key={s.id}
-              style={styles.suggestionRow}
+              style={[
+                styles.suggestionRow,
+                i === suggestions.length - 1 && styles.suggestionRowLast,
+              ]}
               onPress={(): void => onSelect(s)}
               haptic="light"
               scale={0.98}
@@ -130,6 +132,9 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.border.primary,
+  },
+  suggestionRowLast: {
+    borderBottomWidth: 0,
   },
   suggestionText: {
     fontSize: 14,

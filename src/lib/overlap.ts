@@ -23,7 +23,8 @@ const isInPreferredHours = (date: Date, preferred: PreferredHours): boolean => {
   const isWeekend = day === 0 || day === 6;
   if (isWeekend) return preferred.weekend;
   if (preferred.weekday_morning && hour >= 7 && hour < 12) return true;
-  if (preferred.weekday_evening && hour >= 17 && hour <= 21) return true;
+  if (preferred.weekday_evening && hour >= 17 && hour <= MAX_START_HOUR)
+    return true;
   return false;
 };
 

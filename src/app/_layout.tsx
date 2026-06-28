@@ -52,8 +52,13 @@ function RootLayout(): ReactElement {
         const data = response.notification.request.content.data as
           | Record<string, string>
           | undefined;
-        if (!data?.screen) return;
-        router.push(data.screen as Parameters<typeof router.push>[0]);
+        const screen = data?.screen;
+        if (!screen) return;
+        // Only navigate to known internal routes — reject arbitrary strings
+        const allowed =
+          /^(\/match\/[a-zA-Z0-9/_-]+|\/(tabs)\/(hub|matches|courts|profile))$/;
+        if (!allowed.test(screen)) return;
+        router.push(screen as Parameters<typeof router.push>[0]);
       },
     );
     return () => sub.remove();

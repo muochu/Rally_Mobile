@@ -1,11 +1,10 @@
 import { FlashList } from '@shopify/flash-list';
-import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import type { ReactElement } from 'react';
 import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
+  Pressable,
   RefreshControl,
   StyleSheet,
   Text,
@@ -17,18 +16,9 @@ import { MatchCard } from '@/components/feature/match-card';
 import type { Tab } from '@/components/feature/matches-tab-bar';
 import { MatchesTabBar } from '@/components/feature/matches-tab-bar';
 import { ReviewSheet } from '@/components/feature/review-sheet';
+import { useMatchActions } from '@/hooks/use-match-actions';
 import type { MatchWithOpponent, PendingRequest } from '@/hooks/use-matches';
-import {
-  cancelMatch,
-  cancelRequest,
-  declineRequest,
-  markMatchComplete,
-  submitReview,
-  useMatches,
-} from '@/hooks/use-matches';
-import { encodeSlotId } from '@/lib/format-slot';
-import { haptics } from '@/lib/haptics';
-import { requestReviewIfAvailable } from '@/lib/store-review';
+import { useMatches } from '@/hooks/use-matches';
 import { colors } from '@/theme/colors';
 import { spacing } from '@/theme/spacing';
 
@@ -40,118 +30,21 @@ const EMPTY_MESSAGES: Record<Tab, string> = {
 
 export default function MatchesScreen(): ReactElement {
   const router = useRouter();
-  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<Tab>('upcoming');
-  const [reviewTarget, setReviewTarget] = useState<MatchWithOpponent | null>(
-    null,
-  );
 
   const { data, isLoading, isFetching } = useMatches();
-
-  const invalidate = useCallback((): void => {
-    void queryClient.invalidateQueries({ queryKey: ['matches'] });
-  }, [queryClient]);
-
-  const handleRefresh = useCallback((): void => {
-    invalidate();
-  }, [invalidate]);
-
-  const handleCancelMatch = useCallback(
-    (match: MatchWithOpponent): void => {
-      Alert.alert(
-        'Cancel match?',
-        `Cancel your match with ${match.opponentName} on ${match.startTime.toLocaleDateString()}?`,
-        [
-          { text: 'Keep it', style: 'cancel' },
-          {
-            text: 'Cancel match',
-            style: 'destructive',
-            onPress: (): void => {
-              haptics.medium();
-              void cancelMatch(match.id, match.myCalEventId).then(invalidate);
-            },
-          },
-        ],
-      );
-    },
-    [invalidate],
-  );
-
-  const handleMarkComplete = useCallback(
-    (matchId: string): void => {
-      haptics.success();
-      void markMatchComplete(matchId).then(async (): Promise<void> => {
-        invalidate();
-        await requestReviewIfAvailable();
-      });
-    },
-    [invalidate],
-  );
-
-  const handleDecline = useCallback(
-    (requestId: string): void => {
-      Alert.alert('Decline request?', undefined, [
-        { text: 'Back', style: 'cancel' },
-        {
-          text: 'Decline',
-          style: 'destructive',
-          onPress: (): void => {
-            haptics.medium();
-            void declineRequest(requestId).then(invalidate);
-          },
-        },
-      ]);
-    },
-    [invalidate],
-  );
-
-  const handleCancelRequest = useCallback(
-    (requestId: string): void => {
-      void cancelRequest(requestId).then(invalidate);
-    },
-    [invalidate],
-  );
-
-  const handleBook = useCallback(
-    (request: PendingRequest): void => {
-      const encodedName = encodeURIComponent(request.opponentName);
-      if (request.proposedStart && request.proposedEnd) {
-        const slotId = encodeSlotId(request.proposedStart, request.proposedEnd);
-        router.push(
-          `/match/confirm/${request.opponentId}/${slotId}?name=${encodedName}&requestId=${request.id}&requesterId=${request.opponentId}` as Parameters<
-            typeof router.push
-          >[0],
-        );
-      } else {
-        router.push(
-          `/match/picker/${request.opponentId}?name=${encodedName}&requestId=${request.id}` as Parameters<
-            typeof router.push
-          >[0],
-        );
-      }
-    },
-    [router],
-  );
-
-  const handleRematch = useCallback(
-    (match: MatchWithOpponent): void => {
-      router.push(
-        `/match/picker/${match.opponentId}?name=${encodeURIComponent(match.opponentName)}` as Parameters<
-          typeof router.push
-        >[0],
-      );
-    },
-    [router],
-  );
-
-  const handleSubmitReview = useCallback(
-    async (matchId: string, rating: number, noShow: boolean): Promise<void> => {
-      await submitReview(matchId, rating, noShow);
-      setReviewTarget(null);
-      invalidate();
-    },
-    [invalidate],
-  );
+  const {
+    reviewTarget,
+    setReviewTarget,
+    handleCancelMatch,
+    handleMarkComplete,
+    handleDecline,
+    handleCancelRequest,
+    handleBook,
+    handleRematch,
+    handleSubmitReview,
+    handleRefresh,
+  } = useMatchActions();
 
   const { upcoming, pending, past } = data ?? {
     upcoming: [],
@@ -161,30 +54,37 @@ export default function MatchesScreen(): ReactElement {
 
   const renderUpcoming = useCallback(
     ({ item }: { item: MatchWithOpponent }): ReactElement => (
-      <MatchCard
-        variant="upcoming"
-        match={item}
-        onCancel={(): void => handleCancelMatch(item)}
-        onMarkComplete={(): void => handleMarkComplete(item.id)}
-      />
+      <Pressable
+        onPress={(): void => router.push(`/match/${item.id}` as never)}
+      >
+        <MatchCard
+          variant="upcoming"
+          match={item}
+          onCancel={(): void => handleCancelMatch(item)}
+          onMarkComplete={(): void => handleMarkComplete(item.id)}
+        />
+      </Pressable>
     ),
-    [handleCancelMatch, handleMarkComplete],
+    [handleCancelMatch, handleMarkComplete, router],
   );
 
   const renderPast = useCallback(
-    ({ item }: { item: MatchWithOpponent }): ReactElement => (
-      <MatchCard
-        variant="past"
-        match={item}
-        onReview={
-          !item.hasMyReview && item.status === 'completed'
-            ? (): void => setReviewTarget(item)
-            : undefined
-        }
-        onRematch={(): void => handleRematch(item)}
-      />
-    ),
-    [handleRematch],
+    ({ item }: { item: MatchWithOpponent }): ReactElement => {
+      const canReview = item.status === 'completed' && !item.hasMyReview;
+      return (
+        <Pressable
+          onPress={(): void => router.push(`/match/${item.id}` as never)}
+        >
+          <MatchCard
+            variant="past"
+            match={item}
+            onReview={canReview ? (): void => setReviewTarget(item) : undefined}
+            onRematch={(): void => handleRematch(item)}
+          />
+        </Pressable>
+      );
+    },
+    [handleRematch, setReviewTarget, router],
   );
 
   const renderPending = useCallback(
@@ -236,7 +136,7 @@ export default function MatchesScreen(): ReactElement {
               renderItem={renderUpcoming}
               contentContainerStyle={styles.listContent}
               showsVerticalScrollIndicator={false}
-              estimatedItemSize={120}
+              estimatedItemSize={100}
               refreshControl={refreshControl}
               ListEmptyComponent={
                 <Text style={styles.emptyText}>{EMPTY_MESSAGES.upcoming}</Text>
@@ -250,7 +150,7 @@ export default function MatchesScreen(): ReactElement {
               renderItem={renderPending}
               contentContainerStyle={styles.listContent}
               showsVerticalScrollIndicator={false}
-              estimatedItemSize={120}
+              estimatedItemSize={160}
               refreshControl={refreshControl}
               ListEmptyComponent={
                 <Text style={styles.emptyText}>{EMPTY_MESSAGES.pending}</Text>
@@ -264,7 +164,7 @@ export default function MatchesScreen(): ReactElement {
               renderItem={renderPast}
               contentContainerStyle={styles.listContent}
               showsVerticalScrollIndicator={false}
-              estimatedItemSize={120}
+              estimatedItemSize={100}
               refreshControl={refreshControl}
               ListEmptyComponent={
                 <Text style={styles.emptyText}>{EMPTY_MESSAGES.past}</Text>
@@ -310,3 +210,5 @@ const styles = StyleSheet.create({
     marginTop: spacing.hero,
   },
 });
+
+export { TabErrorFallback as ErrorBoundary } from '@/components/ui/tab-error-fallback';

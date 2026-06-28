@@ -1,5 +1,6 @@
-import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useMemo } from 'react';
+
 import type { BusyInterval } from '@/lib/calendar/types';
 import type { PreferredHours } from '@/lib/overlap';
 import { findMutualFreeSlots } from '@/lib/overlap';
@@ -7,31 +8,21 @@ import { supabase } from '@/lib/supabase';
 
 const LOOKAHEAD_DAYS = 14;
 const MIN_DURATION_MINUTES = 60;
-const MAX_DAYS_SHOWN = 7;
 
 export type DaySummary = {
   dateKey: string;
   date: Date;
-  dayLabel: string; // "Today", "Sat", "Sun" …
-  dateLabel: string; // "May 9"
-  timeLabel: string; // "All day", "Morning", "Evening", "8–10pm"
+  dayLabel: string;
+  dateLabel: string;
+  timeLabel: string;
   freeHours: number;
+  slots: { start: Date; end: Date }[];
 };
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTH_NAMES = [
-  'Jan',
-  'Feb',
-  'Mar',
-  'Apr',
-  'May',
-  'Jun',
-  'Jul',
-  'Aug',
-  'Sep',
-  'Oct',
-  'Nov',
-  'Dec',
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
 ];
 
 const fmtTime = (d: Date): string => {
@@ -61,11 +52,20 @@ const toTimeLabel = (freeHours: number, start: Date, end: Date): string => {
   return `${fmtTime(start)} – ${fmtTime(end)}`;
 };
 
+type DayEntry = {
+  date: Date;
+  slots: { start: Date; end: Date }[];
+  bestHours: number;
+  bestStart: Date;
+  bestEnd: Date;
+};
+
 export const useFreeWindows = (
   userId: string | undefined,
   preferred?: PreferredHours | null,
 ): {
   daySummaries: DaySummary[];
+  busyIntervals: BusyInterval[];
   isLoading: boolean;
   hasBlocks: boolean;
 } => {
@@ -82,8 +82,8 @@ export const useFreeWindows = (
         .from('availability_blocks')
         .select('start_time, end_time')
         .eq('user_id', userId)
-        .gte('start_time', windowStart.toISOString())
         .lt('start_time', windowEnd.toISOString())
+        .gt('end_time', windowStart.toISOString())
         .order('start_time');
       return data ?? [];
     },
@@ -104,13 +104,9 @@ export const useFreeWindows = (
     });
 
     const MIN_HOUR = 7;
-    const MAX_HOUR = 22; // display window: 7am–10pm
+    const MAX_HOUR = 22;
 
-    // Expand each window into per-day free blocks
-    const byDay = new Map<
-      string,
-      { date: Date; start: Date; end: Date; hours: number }
-    >();
+    const byDay = new Map<string, DayEntry>();
 
     for (const win of windows) {
       let cursor = new Date(win.start);
@@ -125,25 +121,35 @@ export const useFreeWindows = (
 
         if (effectiveStart < effectiveEnd) {
           const key = `${cursor.getFullYear()}-${cursor.getMonth()}-${cursor.getDate()}`;
-          const existingHours = byDay.get(key)?.hours ?? 0;
-          const freeHours =
+          const slotHours =
             (effectiveEnd.getTime() - effectiveStart.getTime()) / 3_600_000;
 
-          if (!byDay.has(key) || freeHours > existingHours) {
+          if (!byDay.has(key)) {
             byDay.set(key, {
               date: new Date(
                 cursor.getFullYear(),
                 cursor.getMonth(),
                 cursor.getDate(),
               ),
-              start: effectiveStart,
-              end: effectiveEnd,
-              hours: freeHours,
+              slots: [],
+              bestHours: 0,
+              bestStart: effectiveStart,
+              bestEnd: effectiveEnd,
             });
+          }
+
+          const entry = byDay.get(key)!;
+          entry.slots.push({
+            start: new Date(effectiveStart),
+            end: new Date(effectiveEnd),
+          });
+          if (slotHours > entry.bestHours) {
+            entry.bestHours = slotHours;
+            entry.bestStart = effectiveStart;
+            entry.bestEnd = effectiveEnd;
           }
         }
 
-        // Advance to next day
         const next = new Date(cursor);
         next.setDate(next.getDate() + 1);
         next.setHours(MIN_HOUR, 0, 0, 0);
@@ -171,8 +177,7 @@ export const useFreeWindows = (
         if (isWeekend) return preferred!.weekend;
         return preferred!.weekday_morning || preferred!.weekday_evening;
       })
-      .slice(0, MAX_DAYS_SHOWN)
-      .map(({ date, start, end, hours }) => {
+      .map(({ date, slots, bestHours, bestStart, bestEnd }) => {
         const isToday = date.getTime() === today.getTime();
         const isTomorrow = date.getTime() === tomorrow.getTime();
         const dayLabel = isToday
@@ -181,7 +186,6 @@ export const useFreeWindows = (
             ? 'Tomorrow'
             : DAY_NAMES[date.getDay()];
         const dateLabel = `${MONTH_NAMES[date.getMonth()]} ${date.getDate()}`;
-        const timeLabel = toTimeLabel(hours, start, end);
         const key = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
 
         return {
@@ -189,14 +193,24 @@ export const useFreeWindows = (
           date,
           dayLabel,
           dateLabel,
-          timeLabel,
-          freeHours: hours,
+          timeLabel: toTimeLabel(bestHours, bestStart, bestEnd),
+          freeHours: bestHours,
+          slots,
         };
       });
   }, [blocks, preferred]);
 
+  const busyIntervals = useMemo((): BusyInterval[] => {
+    if (!blocks) return [];
+    return blocks.map((b) => ({
+      start: new Date(b.start_time),
+      end: new Date(b.end_time),
+    }));
+  }, [blocks]);
+
   return {
     daySummaries,
+    busyIntervals,
     isLoading,
     hasBlocks: (blocks?.length ?? 0) > 0,
   };

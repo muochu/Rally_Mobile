@@ -25,7 +25,7 @@ import { haptics } from '@/lib/haptics';
 import { colors } from '@/theme/colors';
 import { radii, spacing } from '@/theme/spacing';
 
-export default function BookedScreen(): ReactElement {
+export default function BookedScreen(): ReactElement | null {
   const router = useRouter();
   const { slotId, name, calDenied, mode } = useLocalSearchParams<{
     matchId: string;
@@ -38,14 +38,20 @@ export default function BookedScreen(): ReactElement {
   const opponentName = name ?? 'Player';
   const calendarDenied = calDenied === 'true';
   const isRequestMode = mode === 'requested';
-  const { start, end } = decodeSlotId(slotId);
+  const slot = decodeSlotId(slotId ?? '');
 
   const scale = useRef(new Animated.Value(0)).current;
   const opacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    if (!slot) {
+      router.back();
+      return;
+    }
     if (isRequestMode) {
       haptics.success();
+      scale.setValue(1);
+      opacity.setValue(1);
       return;
     }
     haptics.heavy();
@@ -66,12 +72,17 @@ export default function BookedScreen(): ReactElement {
       }),
     ]).start();
     return (): void => clearTimeout(t);
-  }, [scale, opacity]);
+  }, [scale, opacity, slot, router, isRequestMode]);
 
   const handleViewInCalendar = async (): Promise<void> => {
-    const unixSeconds = Math.floor(start.getTime() / 1000);
+    if (!slot) return;
+    const unixSeconds = Math.floor(slot.start.getTime() / 1000);
     await Linking.openURL(`calshow:${unixSeconds}`);
   };
+
+  if (!slot) return null;
+
+  const { start, end } = slot;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -98,17 +109,11 @@ export default function BookedScreen(): ReactElement {
           </Animated.View>
         </View>
 
-        {/* Calendar event previews — only shown when match is booked */}
+        {/* Calendar event preview — only shown when match is booked */}
         {!isRequestMode && (
           <Animated.View style={[styles.previewSection, { opacity }]}>
             <CalendarEventPreview
               label="Your calendar event"
-              title="Tennis match – Rally"
-              dateLabel={formatSlotDate(start)}
-              timeRange={formatTimeRange(start, end)}
-            />
-            <CalendarEventPreview
-              label={`${opponentName}'s invite`}
               title="Tennis match – Rally"
               dateLabel={formatSlotDate(start)}
               timeRange={formatTimeRange(start, end)}

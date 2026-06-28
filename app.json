@@ -2,7 +2,10 @@
   "expo": {
     "name": "Rally",
     "slug": "rally-mobile",
-    "scheme": "rally",
+    "scheme": [
+      "rally",
+      "com.googleusercontent.apps.128552943058-eo0pv9hif3mhvfudt4h2lhl8fpipdca8"
+    ],
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",

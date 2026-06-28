@@ -1,7 +1,11 @@
 import * as AuthSession from 'expo-auth-session';
 import * as SecureStore from 'expo-secure-store';
 import * as WebBrowser from 'expo-web-browser';
+
 import { env } from '@/lib/env';
+import { reportError, UserFacingError } from '@/lib/errors';
+import { supabase } from '@/lib/supabase';
+
 import type { BusyInterval } from './types';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -28,8 +32,16 @@ type FreeBusyResponse = {
   };
 };
 
-const getRedirectUri = (): string =>
-  AuthSession.makeRedirectUri({ scheme: 'rally', path: 'oauth' });
+// Google's iOS OAuth client type requires the redirect URI scheme to be the
+// reversed client ID (e.g. com.googleusercontent.apps.123-abc) — any other
+// custom scheme is rejected with "doesn't comply with Google's OAuth 2.0 policy".
+const getRedirectUri = (): string => {
+  const reversedClientId = env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID.replace(
+    /^(.+)\.apps\.googleusercontent\.com$/,
+    'com.googleusercontent.apps.$1',
+  );
+  return `${reversedClientId}:/oauth2redirect`;
+};
 
 const getValidAccessToken = async (): Promise<string | null> => {
   const [token, refresh, expiryStr] = await Promise.all([
@@ -48,14 +60,16 @@ const getValidAccessToken = async (): Promise<string | null> => {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
-      client_id: env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+      client_id: env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
       grant_type: 'refresh_token',
       refresh_token: refresh,
     }).toString(),
   });
 
   if (!res.ok) {
-    await disconnectGoogleCalendar();
+    if (res.status === 400 || res.status === 401) {
+      await disconnectGoogleCalendar();
+    }
     return null;
   }
 
@@ -76,7 +90,7 @@ export const connectGoogleCalendar = async (): Promise<boolean> => {
   };
 
   const request = new AuthSession.AuthRequest({
-    clientId: env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+    clientId: env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
     scopes: SCOPES,
     redirectUri,
     responseType: AuthSession.ResponseType.Code,
@@ -85,21 +99,37 @@ export const connectGoogleCalendar = async (): Promise<boolean> => {
   });
 
   const result = await request.promptAsync(discovery);
-  if (result.type !== 'success' || !result.params.code) return false;
+  if (result.type === 'cancel' || result.type === 'dismiss') return false;
+  if (result.type !== 'success' || !result.params.code) {
+    reportError(new Error('Google calendar OAuth did not return a code'), {
+      context: 'connectGoogleCalendar-prompt',
+      resultType: result.type,
+      error: result.type === 'error' ? result.error?.message : undefined,
+    });
+    throw new UserFacingError('Could not connect to Google Calendar. Please try again.');
+  }
 
   const res = await fetch(GOOGLE_TOKEN_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       code: result.params.code,
-      client_id: env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+      client_id: env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
       redirect_uri: redirectUri,
       grant_type: 'authorization_code',
       code_verifier: request.codeVerifier ?? '',
     }).toString(),
   });
 
-  if (!res.ok) return false;
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    reportError(new Error(`Google token exchange failed: ${res.status}`), {
+      context: 'connectGoogleCalendar-tokenExchange',
+      status: res.status,
+      body,
+    });
+    throw new UserFacingError('Could not connect to Google Calendar. Please try again.');
+  }
 
   const tokens = (await res.json()) as TokenResponse;
   const expiry = Date.now() + tokens.expires_in * 1000;
@@ -116,10 +146,20 @@ export const connectGoogleCalendar = async (): Promise<boolean> => {
 };
 
 export const disconnectGoogleCalendar = async (): Promise<void> => {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
   await Promise.all([
     SecureStore.deleteItemAsync(STORE.accessToken),
     SecureStore.deleteItemAsync(STORE.refreshToken),
     SecureStore.deleteItemAsync(STORE.expiry),
+    session
+      ? supabase
+          .from('availability_blocks')
+          .delete()
+          .eq('user_id', session.user.id)
+          .eq('source', 'google')
+      : Promise.resolve(),
   ]);
 };
 
@@ -148,7 +188,13 @@ export const getGoogleBusyIntervals = async (
     body: JSON.stringify({ timeMin, timeMax, items: [{ id: 'primary' }] }),
   });
 
-  if (!res.ok) return [];
+  if (!res.ok) {
+    reportError(new Error(`getGoogleBusyIntervals: HTTP ${res.status}`), {
+      context: 'getGoogleBusyIntervals',
+      status: res.status,
+    });
+    return [];
+  }
 
   const data = (await res.json()) as FreeBusyResponse;
   return (data.calendars.primary?.busy ?? []).map((b) => ({

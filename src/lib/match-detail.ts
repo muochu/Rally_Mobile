@@ -1,4 +1,5 @@
 import { z } from 'zod';
+
 import { supabase } from '@/lib/supabase';
 
 export type MatchDetail = {
@@ -12,6 +13,9 @@ export type MatchDetail = {
   courtAddress: string | null;
   courtLat: number | null;
   courtLng: number | null;
+  myCalEventId: string | null;
+  calEventColumn: 'apple_event_id_a' | 'apple_event_id_b';
+  hasMyReview: boolean;
 };
 
 const MatchRowSchema = z.object({
@@ -21,6 +25,8 @@ const MatchRowSchema = z.object({
   start_time: z.string(),
   end_time: z.string(),
   status: z.enum(['upcoming', 'completed', 'cancelled']),
+  apple_event_id_a: z.string().nullable(),
+  apple_event_id_b: z.string().nullable(),
   courts: z
     .object({
       name: z.string(),
@@ -42,16 +48,27 @@ export const fetchMatchDetail = async (
   if (!session) return null;
   const myId = session.user.id;
 
-  const { data: raw } = await supabase
-    .from('matches')
-    .select('*, courts(name, address, latitude, longitude)')
-    .eq('id', id)
-    .single();
+  const [{ data: raw }, { data: reviews }] = await Promise.all([
+    supabase
+      .from('matches')
+      .select('*, courts(name, address, latitude, longitude)')
+      .eq('id', id)
+      .single(),
+    supabase
+      .from('match_reviews')
+      .select('id')
+      .eq('match_id', id)
+      .eq('reviewer_id', myId)
+      .limit(1),
+  ]);
 
   if (!raw) return null;
 
-  const match = MatchRowSchema.parse(raw);
-  const opponentId = match.player_a === myId ? match.player_b : match.player_a;
+  const parsed = MatchRowSchema.safeParse(raw);
+  if (!parsed.success) return null;
+  const match = parsed.data;
+  const isPlayerA = match.player_a === myId;
+  const opponentId = isPlayerA ? match.player_b : match.player_a;
 
   const { data: profileRaw } = await supabase
     .from('profiles')
@@ -73,5 +90,8 @@ export const fetchMatchDetail = async (
     courtAddress: court?.address ?? null,
     courtLat: court?.latitude ?? null,
     courtLng: court?.longitude ?? null,
+    myCalEventId: isPlayerA ? match.apple_event_id_a : match.apple_event_id_b,
+    calEventColumn: isPlayerA ? 'apple_event_id_a' : 'apple_event_id_b',
+    hasMyReview: (reviews ?? []).length > 0,
   };
 };

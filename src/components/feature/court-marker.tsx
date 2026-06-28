@@ -1,26 +1,19 @@
 import type { ReactElement } from 'react';
 import { useEffect } from 'react';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withSpring,
 } from 'react-native-reanimated';
-import type { TrafficState } from '@/hooks/use-courts';
+
 import { colors } from '@/theme/colors';
 
 type Props = {
-  traffic: TrafficState;
   selected: boolean;
 };
 
-const TRAFFIC_COLOR: Record<TrafficState, string> = {
-  open: colors.status.open,
-  filling: colors.status.filling,
-  full: colors.status.full,
-};
-
-export function CourtMarker({ traffic, selected }: Props): ReactElement {
+export function CourtMarker({ selected }: Props): ReactElement {
   const scale = useSharedValue(selected ? 1.5 : 1);
 
   useEffect(() => {
@@ -34,19 +27,30 @@ export function CourtMarker({ traffic, selected }: Props): ReactElement {
     transform: [{ scale: scale.value }],
   }));
 
+  // PointAnnotation anchors to this View's layout bounds — the outer
+  // container must be large enough to contain the scaled pin (22 × 1.5 = 33)
+  // so the anchor stays stable while the inner pin animates.
   return (
-    <Animated.View
-      style={[
-        styles.pin,
-        { backgroundColor: TRAFFIC_COLOR[traffic] },
-        selected && styles.pinSelected,
-        animStyle,
-      ]}
-    />
+    <View style={styles.container}>
+      <Animated.View
+        style={[
+          styles.pin,
+          { backgroundColor: colors.accent.primary },
+          selected && styles.pinSelected,
+          animStyle,
+        ]}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  container: {
+    width: 34,
+    height: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   pin: {
     width: 22,
     height: 22,

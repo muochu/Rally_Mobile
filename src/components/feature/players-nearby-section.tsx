@@ -1,6 +1,5 @@
 import type { ReactElement } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-
 import type { NearbyPlayer } from '@/components/feature/player-card';
 import { PlayerCard } from '@/components/feature/player-card';
 import { SkeletonPlayerCard } from '@/components/ui/skeleton';
@@ -69,7 +68,7 @@ export function PlayersNearbySection({
           <View style={styles.emptyState}>
             <Text style={styles.emptyTitle}>No players nearby yet</Text>
             <Text style={styles.emptyBody}>
-              Try expanding your search radius or invite a friend to Rally.
+              Invite a friend to Rally or check back as more players join.
             </Text>
           </View>
         ) : (

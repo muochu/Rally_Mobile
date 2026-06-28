@@ -1,7 +1,8 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeft, MapPin } from 'lucide-react-native';
 import type { ReactElement } from 'react';
+import { useState } from 'react';
 import {
   Linking,
   Pressable,
@@ -12,7 +13,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { MatchDetailActions } from '@/components/feature/match-detail-actions';
+import { ReviewSheet } from '@/components/feature/review-sheet';
 import { Skeleton } from '@/components/ui/skeleton';
+import type { MatchWithOpponent } from '@/hooks/use-matches';
+import { submitReview } from '@/hooks/use-matches';
 import type { MatchDetail } from '@/lib/match-detail';
 import { fetchMatchDetail } from '@/lib/match-detail';
 import { colors } from '@/theme/colors';
@@ -33,6 +38,8 @@ const STATUS_COLOR: Record<MatchDetail['status'], string> = {
 export default function MatchDetailsScreen(): ReactElement {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const queryClient = useQueryClient();
+  const [showReview, setShowReview] = useState(false);
 
   const { data: match, isLoading } = useQuery({
     queryKey: ['match', id],
@@ -47,14 +54,32 @@ export default function MatchDetailsScreen(): ReactElement {
     );
   };
 
-  const handleRematch = (): void => {
-    if (!match) return;
-    router.push(
-      `/match/picker/${match.opponentId}?name=${encodeURIComponent(match.opponentName)}` as Parameters<
-        typeof router.push
-      >[0],
-    );
+  const handleSubmitReview = async (
+    matchId: string,
+    rating: number,
+    noShow: boolean,
+  ): Promise<void> => {
+    await submitReview(matchId, rating, noShow);
+    setShowReview(false);
+    void queryClient.invalidateQueries({ queryKey: ['matches'] });
+    void queryClient.invalidateQueries({ queryKey: ['match', id] });
   };
+
+  const reviewTarget: MatchWithOpponent | null = match
+    ? {
+        id: match.id,
+        opponentId: match.opponentId,
+        opponentName: match.opponentName,
+        opponentAvatarUrl: null,
+        startTime: match.startTime,
+        endTime: match.endTime,
+        status: match.status,
+        myCalEventId: match.myCalEventId,
+        calEventColumn: match.calEventColumn,
+        hasMyReview: match.hasMyReview,
+        scheduleRequestId: null,
+      }
+    : null;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -159,18 +184,20 @@ export default function MatchDetailsScreen(): ReactElement {
             </View>
           )}
 
-          {match.status === 'completed' && (
-            <Pressable
-              style={styles.primaryBtn}
-              onPress={handleRematch}
-              accessibilityRole="button"
-              accessibilityLabel="Schedule a rematch"
-            >
-              <Text style={styles.primaryBtnText}>Rematch</Text>
-            </Pressable>
-          )}
+          <MatchDetailActions
+            match={match}
+            matchId={id ?? ''}
+            onShowReview={(): void => setShowReview(true)}
+          />
         </ScrollView>
       )}
+
+      <ReviewSheet
+        visible={showReview}
+        match={reviewTarget}
+        onSubmit={handleSubmitReview}
+        onClose={(): void => setShowReview(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -269,18 +296,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.accent.primary,
     fontWeight: '500',
-  },
-  primaryBtn: {
-    height: 52,
-    borderRadius: radii.md,
-    backgroundColor: colors.accent.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: spacing.sm,
-  },
-  primaryBtnText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text.inverse,
   },
 });

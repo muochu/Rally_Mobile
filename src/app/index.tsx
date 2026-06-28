@@ -27,9 +27,9 @@ export default function IndexScreen(): ReactElement {
       .select('city')
       .eq('id', session.user.id)
       .single()
-      .then(({ data }) => {
+      .then(({ data, error }) => {
         const parsed = CityCheckSchema.safeParse(data);
-        if (parsed.data?.city) {
+        if (!error && parsed.data?.city) {
           router.replace('/(tabs)/hub');
         } else {
           router.replace('/(onboarding)/step-1-gender');

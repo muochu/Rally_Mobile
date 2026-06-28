@@ -1,10 +1,8 @@
-import { FlashList } from '@shopify/flash-list';
 import type { ReactElement } from 'react';
+import { FlashList } from '@shopify/flash-list';
 import { Animated, StyleSheet, Text, View } from 'react-native';
-
 import { PressableScale } from '@/components/ui/pressable-scale';
 import type { Court } from '@/hooks/use-courts';
-import { getTrafficState } from '@/hooks/use-courts';
 import { colors } from '@/theme/colors';
 import { radii, spacing } from '@/theme/spacing';
 
@@ -31,14 +29,6 @@ function CourtRow({
   isHome: boolean;
   onPress: () => void;
 }): ReactElement {
-  const traffic = getTrafficState(court.upcoming_matches_count);
-  const trafficColor =
-    traffic === 'open'
-      ? colors.status.open
-      : traffic === 'filling'
-        ? colors.status.filling
-        : colors.status.full;
-
   return (
     <PressableScale
       style={[styles.courtRow, isSelected && styles.courtRowSelected]}
@@ -46,9 +36,8 @@ function CourtRow({
       haptic="light"
       scale={0.98}
       accessibilityRole="button"
-      accessibilityLabel={`${court.name}, ${traffic}`}
+      accessibilityLabel={court.name}
     >
-      <View style={[styles.trafficDot, { backgroundColor: trafficColor }]} />
       <View style={styles.courtInfo}>
         <Text style={styles.courtName} numberOfLines={1}>
           {court.name}
@@ -180,12 +169,6 @@ const styles = StyleSheet.create({
   courtRowSelected: {
     backgroundColor: colors.accent.soft,
   },
-  trafficDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    flexShrink: 0,
-  },
   courtInfo: {
     flex: 1,
   },
@@ -207,6 +190,6 @@ const styles = StyleSheet.create({
   separator: {
     height: 1,
     backgroundColor: colors.border.primary,
-    marginLeft: spacing.lg + 10 + spacing.md,
+    marginLeft: spacing.lg,
   },
 });

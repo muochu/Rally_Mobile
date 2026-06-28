@@ -1,15 +1,17 @@
-import { useEffect } from 'react';
 import * as Sentry from '@sentry/react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as Calendar from 'expo-calendar';
+import { useEffect, useRef } from 'react';
 import { Alert } from 'react-native';
 import { z } from 'zod';
+
 import { trackEvent } from '@/lib/analytics';
+import { addMissingCalendarEvent } from '@/lib/match-flow';
 import { supabase } from '@/lib/supabase';
 
 const ProfileRowSchema = z.object({
   id: z.string(),
-  full_name: z.string(),
+  full_name: z.string().nullable(),
   avatar_url: z.string().nullable(),
 });
 
@@ -22,6 +24,7 @@ export type MatchWithOpponent = {
   endTime: Date;
   status: 'upcoming' | 'completed' | 'cancelled';
   myCalEventId: string | null;
+  calEventColumn: 'apple_event_id_a' | 'apple_event_id_b';
   hasMyReview: boolean;
   scheduleRequestId: string | null;
 };
@@ -52,22 +55,21 @@ const fetchMatchesData = async (): Promise<MatchesResult> => {
   if (!session) return { upcoming: [], past: [], pending: [] };
   const myId = session.user.id;
 
-  const [matchesAResult, matchesBResult, reviewsResult, requestsResult] =
-    await Promise.all([
-      supabase.from('matches').select('*').eq('player_a', myId),
-      supabase.from('matches').select('*').eq('player_b', myId),
-      supabase.from('match_reviews').select('match_id').eq('reviewer_id', myId),
-      supabase
-        .from('schedule_requests')
-        .select('*')
-        .or(`requester_id.eq.${myId},recipient_id.eq.${myId}`)
-        .eq('status', 'pending'),
-    ]);
+  const [matchesResult, reviewsResult, requestsResult] = await Promise.all([
+    supabase
+      .from('matches')
+      .select('*')
+      .or(`player_a.eq.${myId},player_b.eq.${myId}`),
+    supabase.from('match_reviews').select('match_id').eq('reviewer_id', myId),
+    supabase
+      .from('schedule_requests')
+      .select('*')
+      .or(`requester_id.eq.${myId},recipient_id.eq.${myId}`)
+      .eq('status', 'pending')
+      .gte('expires_at', new Date().toISOString()),
+  ]);
 
-  const allMatches = [
-    ...(matchesAResult.data ?? []),
-    ...(matchesBResult.data ?? []),
-  ];
+  const allMatches = matchesResult.data ?? [];
   const myReviewedMatchIds = new Set(
     (reviewsResult.data ?? []).map((r) => r.match_id),
   );
@@ -86,13 +88,7 @@ const fetchMatchesData = async (): Promise<MatchesResult> => {
           .from('profiles')
           .select('id, full_name, avatar_url')
           .in('id', [...opponentIds])
-      : {
-          data: [] as {
-            id: string;
-            full_name: string;
-            avatar_url: string | null;
-          }[],
-        };
+      : { data: [] as z.infer<typeof ProfileRowSchema>[] };
 
   const profileRows = z
     .array(ProfileRowSchema)
@@ -114,6 +110,7 @@ const fetchMatchesData = async (): Promise<MatchesResult> => {
       status: m.status,
       myCalEventId:
         m.player_a === myId ? m.apple_event_id_a : m.apple_event_id_b,
+      calEventColumn: m.player_a === myId ? 'apple_event_id_a' : 'apple_event_id_b',
       hasMyReview: myReviewedMatchIds.has(m.id),
       scheduleRequestId: m.schedule_request_id,
     };
@@ -164,6 +161,31 @@ type MatchUpdatePayload = {
 
 export const useMatches = (): ReturnType<typeof useQuery<MatchesResult>> => {
   const queryClient = useQueryClient();
+  const processedCalRef = useRef(new Set<string>());
+
+  const query = useQuery({
+    queryKey: ['matches'],
+    queryFn: fetchMatchesData,
+    staleTime: 30_000,
+  });
+
+  // Write calendar events for upcoming matches that never got one (e.g. the requester)
+  useEffect(() => {
+    const toProcess = (query.data?.upcoming ?? []).filter(
+      (m) => m.myCalEventId === null && !processedCalRef.current.has(m.id),
+    );
+    for (const match of toProcess) {
+      processedCalRef.current.add(match.id);
+      void addMissingCalendarEvent(
+        match.id,
+        match.startTime,
+        match.endTime,
+        match.calEventColumn,
+      ).catch(() => {
+        processedCalRef.current.delete(match.id);
+      });
+    }
+  }, [query.data?.upcoming]);
 
   useEffect(() => {
     let myId: string | null = null;
@@ -185,7 +207,7 @@ export const useMatches = (): ReturnType<typeof useQuery<MatchesResult>> => {
           ) {
             Alert.alert(
               'Match cancelled',
-              'Your opponent cancelled this match.',
+              'Your opponent cancelled this match. Remember to remove the calendar event.',
             );
           }
           void queryClient.invalidateQueries({ queryKey: ['matches'] });
@@ -212,11 +234,7 @@ export const useMatches = (): ReturnType<typeof useQuery<MatchesResult>> => {
     };
   }, [queryClient]);
 
-  return useQuery({
-    queryKey: ['matches'],
-    queryFn: fetchMatchesData,
-    staleTime: 30_000,
-  });
+  return query;
 };
 
 export const cancelMatch = async (
@@ -228,14 +246,17 @@ export const cancelMatch = async (
   } = await supabase.auth.getSession();
   if (!session) return;
 
-  await supabase
+  const { error } = await supabase
     .from('matches')
     .update({
       status: 'cancelled',
       cancelled_at: new Date().toISOString(),
       cancelled_by: session.user.id,
     })
-    .eq('id', matchId);
+    .eq('id', matchId)
+    .eq('status', 'upcoming');
+
+  if (error) throw error;
 
   if (calEventId) {
     try {
@@ -249,13 +270,22 @@ export const cancelMatch = async (
 };
 
 export const markMatchComplete = async (matchId: string): Promise<void> => {
-  await supabase
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session) return;
+
+  const { error } = await supabase
     .from('matches')
     .update({
       status: 'completed',
       completed_at: new Date().toISOString(),
     })
-    .eq('id', matchId);
+    .eq('id', matchId)
+    .eq('status', 'upcoming')
+    .or(`player_a.eq.${session.user.id},player_b.eq.${session.user.id}`);
+
+  if (error) throw error;
   trackEvent('match_completed');
 };
 
@@ -269,24 +299,56 @@ export const submitReview = async (
   } = await supabase.auth.getSession();
   if (!session) return;
 
-  await supabase.from('match_reviews').insert({
+  const { error } = await supabase.from('match_reviews').insert({
     match_id: matchId,
     reviewer_id: session.user.id,
     rating,
     no_show: noShow,
   });
+
+  if (error) throw error;
 };
 
 export const declineRequest = async (requestId: string): Promise<void> => {
-  await supabase
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  const { error } = await supabase
     .from('schedule_requests')
     .update({ status: 'declined', responded_at: new Date().toISOString() })
-    .eq('id', requestId);
+    .eq('id', requestId)
+    .eq('status', 'pending');
+  if (error) throw error;
+
+  if (session) {
+    void supabase
+      .from('schedule_requests')
+      .select('requester_id')
+      .eq('id', requestId)
+      .single()
+      .then(({ data }) => {
+        if (data?.requester_id) {
+          void supabase.functions.invoke('notify-request-response', {
+            body: {
+              record: {
+                id: requestId,
+                requester_id: data.requester_id,
+                recipient_id: session.user.id,
+                status: 'declined',
+              },
+            },
+          });
+        }
+      });
+  }
 };
 
 export const cancelRequest = async (requestId: string): Promise<void> => {
-  await supabase
+  const { error } = await supabase
     .from('schedule_requests')
     .update({ status: 'cancelled' })
-    .eq('id', requestId);
+    .eq('id', requestId)
+    .eq('status', 'pending');
+  if (error) throw error;
 };
